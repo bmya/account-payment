@@ -32,7 +32,7 @@ class AccountPaymentGroup(models.Model):
         states={'draft': [('readonly', False)]},
     )
     payment_methods = fields.Char(
-        string='Payment Methods',
+        string='Métodos de pago',
         compute='_compute_payment_methods',
         search='_search_payment_methods',
     )
@@ -220,6 +220,22 @@ class AccountPaymentGroup(models.Model):
     account_internal_type = fields.Char(
         compute='_compute_account_internal_type'
     )
+
+    @api.multi
+    def onchange(self, values, field_name, field_onchange):
+        """
+        En este caso es distinto el fix al uso que le damos para domains [0][2]
+        de campos x2many en vista. En este caso lo necesitamos porque la mejora
+        que hicieron de vistas de alguna menra molesta y hace pensar que
+        estamos escribiendo los move lines, con esto se soluciona
+        """
+        for field in field_onchange.keys():
+            if field.startswith((
+                    'to_pay_move_line_ids.',
+                    'debt_move_line_ids.')):
+                del field_onchange[field]
+        return super(AccountPaymentGroup, self).onchange(
+            values, field_name, field_onchange)
 
     @api.multi
     @api.depends(
