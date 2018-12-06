@@ -26,9 +26,9 @@
                          </group>
                     </group>
                     <footer>
-                        <button string='Save &amp; New' position="attributes">
+                        <!--<button string='Save &amp; New' position="attributes">
                             <attribute name="attrs">{'invisible': True}</attribute>
-                        </button>>
+                        </button>-->
                         <button string='Confirm' name="confirm" type="object" class="btn-primary"/>
                         <button string="Cancel" class="btn-default" special="cancel"/>
                     </footer>
