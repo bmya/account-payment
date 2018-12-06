@@ -4,7 +4,7 @@
 	<!-- Adds all assets in Odoo -->
         <template id="assets_backend" name="hide_save_and_new_button" inherit_id="web.assets_backend">
             <xpath expr="." position="inside">
-                <script type="text/javascript" src="/account_payment_group/static/src/js/hidebutton.js"></script>
+                <!-- <script type="text/javascript" src="/account_payment_group/static/src/js/hidebutton.js"/> -->
 		         <!-- All links to CSS and JS files should be added in here. -->
             </xpath>
         </template>
