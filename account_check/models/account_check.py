@@ -109,6 +109,7 @@ class AccountCheckOperation(models.Model):
                 rec.write({'origin': False})
                 origin_name = False
             rec.origin_name = origin_name
+            rec.name = origin_name
 
     @api.model
     def _reference_models(self):
@@ -135,15 +136,17 @@ class AccountCheck(models.Model):
         auto_join=True,
     )
     name = fields.Char(
-        required=True,
-        readonly=True,
+        # required=True,
+        # readonly=True,
         copy=False,
         states={'draft': [('readonly', False)]},
         index=True,
+        compute='_compute_origin_name',
+        store=True,
     )
     number = fields.Integer(
         required=True,
-        readonly=True,
+        # readonly=True,
         states={'draft': [('readonly', False)]},
         copy=False,
         index=True,
@@ -203,12 +206,12 @@ class AccountCheck(models.Model):
     )
     owner_vat = fields.Char(
         'Owner Vat',
-        readonly=True,
+        # readonly=True,
         states={'draft': [('readonly', False)]}
     )
     owner_name = fields.Char(
         'Owner Name',
-        readonly=True,
+        # readonly=True,
         states={'draft': [('readonly', False)]}
     )
     bank_id = fields.Many2one(
@@ -255,6 +258,30 @@ class AccountCheck(models.Model):
         related='company_id.currency_id',
         readonly=True,
     )
+
+    @api.multi
+    @api.depends('number', 'partner_id')
+    def _compute_origin_name(self):
+        """
+        We add this computed method because an error on tree view displaying
+        reference field when destiny record is deleted.
+        As said in this post (last answer) we should use name_get instead of
+        display_name
+        https://www.odoo.com/es_ES/forum/ayuda-1/question/
+        how-to-override-name-get-method-in-new-api-61228
+        """
+        for rec in self:
+            try:
+                if rec.number and rec.partner_id:
+                    name = '%s - %s' % (rec.partner_id.name, str(number))
+                else:
+                    name = ''  # False
+            except Exception as e:
+                _logger.exception(
+                    "Compute origin on checks exception: %s" % e)
+                name = ''  # False
+                # if we can get origin we clean it
+            rec.name = name
 
     @api.multi
     def onchange(self, values, field_name, field_onchange):
