@@ -19,11 +19,10 @@
 ##############################################################################
 {
     'name': 'Account Check Management',
-    'version': '9.0.1.23.0',
+    'version': '11.0.1.3.0',
     'category': 'Accounting',
     'summary': 'Accounting, Payment, Check, Third, Issue',
-    'author': "OpenERP Team de Localizacion Argentina,"
-    "Odoo Community Association (OCA)",
+    'author': 'ADHOC SA',
     'license': 'AGPL-3',
     'images': [
     ],
@@ -37,12 +36,12 @@
         'data/ir_actions_server_data.xml',
         'wizard/account_check_action_wizard_view.xml',
         'wizard/print_pre_numbered_checks_view.xml',
+        'wizard/res_config_settings_view.xml',
         'views/account_payment_view.xml',
         'views/account_check_view.xml',
         'views/account_journal_dashboard_view.xml',
         'views/account_journal_view.xml',
         'views/account_checkbook_view.xml',
-        'views/res_company_view.xml',
         'views/account_chart_template_view.xml',
         'security/ir.model.access.csv',
         'security/account_check_security.xml',
@@ -51,7 +50,7 @@
     ],
     'test': [
     ],
-    'installable': False,
+    'installable': True,
     'auto_install': False,
     'application': True,
 }

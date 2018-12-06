@@ -14,6 +14,7 @@ class AccountJournal(models.Model):
         'account.checkbook',
         'journal_id',
         'Checkbooks',
+        auto_join=True,
     )
 
     @api.model
@@ -26,13 +27,14 @@ class AccountJournal(models.Model):
             rec._create_checkbook()
         return rec
 
-    @api.one
+    @api.multi
     def _create_checkbook(self):
         """ Create a check sequence for the journal """
-        checkbook = self.checkbook_ids.create({
-            'journal_id': self.id,
-        })
-        checkbook.state = 'active'
+        for rec in self:
+            checkbook = rec.checkbook_ids.create({
+                'journal_id': rec.id,
+            })
+            checkbook.state = 'active'
 
     @api.model
     def _enable_issue_check_on_bank_journals(self):
@@ -60,18 +62,14 @@ class AccountJournal(models.Model):
     @api.multi
     def get_journal_dashboard_datas(self):
         domain_holding_third_checks = [
-            # ('payment_method_id.code', '=', 'received_third_check'),
             ('type', '=', 'third_check'),
             ('journal_id', '=', self.id),
-            # ('check_state', '=', 'holding')
             ('state', '=', 'holding')
         ]
         domain_handed_issue_checks = [
-            # ('payment_method_id.code', '=', 'issue_check'),
             ('type', '=', 'issue_check'),
             ('journal_id', '=', self.id),
             ('state', '=', 'handed')
-            # ('check_state', '=', 'handed')
         ]
         handed_checks = self.env['account.check'].search(
             domain_handed_issue_checks)
@@ -79,7 +77,7 @@ class AccountJournal(models.Model):
             domain_holding_third_checks)
 
         num_checks_to_numerate = False
-        if self.env['ir.actions.report.xml'].search(
+        if self.env['ir.actions.report'].search(
                 [('report_name', '=', 'check_report')]):
             num_checks_to_numerate = self.env['account.payment'].search_count([
                 ('journal_id', '=', self.id),

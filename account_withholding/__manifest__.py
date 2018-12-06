@@ -29,10 +29,11 @@
     ],
     'depends': [
         'account',
-        'account_payment_fix',  # for payment method description
+        # for payment method description and company_id field on form view
+        'account_payment_fix',
     ],
-    'installable': False,
+    'installable': True,
     'name': 'Withholdings on Payments',
     'test': [],
-    'version': '9.0.1.1.0',
+    'version': '11.0.1.0.0',
 }

@@ -4,6 +4,7 @@
 ##############################################################################
 from odoo import fields, models, _, api
 from odoo.exceptions import UserError
+from odoo.tools import float_compare
 import logging
 # import odoo.addons.decimal_precision as dp
 _logger = logging.getLogger(__name__)
@@ -18,7 +19,8 @@ class AccountPayment(models.Model):
         string='Checks',
         copy=False,
         readonly=True,
-        states={'draft': [('readonly', '=', False)]}
+        states={'draft': [('readonly', False)]},
+        auto_join=True,
     )
     # only for v8 comatibility where more than one check could be received
     # or issued
@@ -66,7 +68,7 @@ class AccountPayment(models.Model):
         'Check Number',
         readonly=True,
         states={'draft': [('readonly', False)]},
-        copy=False
+        copy=False,
     )
     check_issue_date = fields.Date(
         'Check Issue Date',
@@ -79,13 +81,14 @@ class AccountPayment(models.Model):
         'Check Payment Date',
         readonly=True,
         help="Only if this check is post dated",
-        states={'draft': [('readonly', False)]}
+        states={'draft': [('readonly', False)]},
     )
     checkbook_id = fields.Many2one(
         'account.checkbook',
         'Checkbook',
         readonly=True,
         states={'draft': [('readonly', False)]},
+        auto_join=True,
     )
     check_subtype = fields.Selection(
         related='checkbook_id.issue_check_subtype',
@@ -96,7 +99,8 @@ class AccountPayment(models.Model):
         'Check Bank',
         readonly=True,
         copy=False,
-        states={'draft': [('readonly', False)]}
+        states={'draft': [('readonly', False)]},
+        auto_join=True,
     )
     check_owner_vat = fields.Char(
         'Check Owner Vat',
@@ -215,7 +219,6 @@ class AccountPayment(models.Model):
             [('check_owner_vat', '=', self.check_owner_vat)],
             limit=1).check_owner_name
 
-    @api.one
     @api.onchange('partner_id', 'payment_method_code')
     def onchange_partner_check(self):
         commercial_partner = self.partner_id.commercial_partner_id
@@ -250,6 +253,9 @@ class AccountPayment(models.Model):
         elif self.checkbook_id:
             # TODO ver si interesa implementar volver atras numeracion
             self.checkbook_id = False
+        # si cambiamos metodo de pago queremos refrescar listado de cheques
+        # seleccionados
+        self.check_ids = False
 
     @api.onchange('checkbook_id')
     def onchange_checkbook(self):
@@ -474,9 +480,15 @@ class AccountPayment(models.Model):
 
     @api.multi
     def post(self):
-        for rec in self.filtered(
-                lambda x: x.payment_method_code == 'issue_check'):
-            if not rec.check_number or not rec.check_name:
+        for rec in self:
+            if rec.check_ids and not rec.currency_id.is_zero(
+                    sum(rec.check_ids.mapped('amount')) - rec.amount):
+                raise UserError(_(
+                    'La suma del pago no coincide con la suma de los cheques '
+                    'seleccionados. Por favor intente eliminar y volver a '
+                    'agregar un cheque.'))
+            if rec.payment_method_code == 'issue_check' and (
+                    not rec.check_number or not rec.check_name):
                 raise UserError(_(
                     'Para mandar a proceso de firma debe definir número '
                     'de cheque en cada línea de pago.\n'
@@ -498,7 +510,8 @@ class AccountPayment(models.Model):
         report_name = len(checkbook) == 1 and  \
             checkbook.report_template.report_name \
             or 'check_report'
-        check_report = self.env['report'].get_action(self, report_name)
+        check_report = self.env['ir.actions.report'].search(
+            [('report_name', '=', report_name)], limit=1).report_action(self)
         # ya el buscar el reporte da el error solo
         # if not check_report:
         #     raise UserError(_(
@@ -541,3 +554,11 @@ class AccountPayment(models.Model):
                     ' cheques sin número.'))
         else:
             return self.do_print_checks()
+
+    def _get_counterpart_move_line_vals(self, invoice=False):
+        vals = super(AccountPayment, self)._get_counterpart_move_line_vals(
+            invoice=invoice)
+        force_account_id = self._context.get('force_account_id')
+        if force_account_id:
+            vals['account_id'] = force_account_id
+        return vals

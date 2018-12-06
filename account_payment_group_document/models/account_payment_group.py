@@ -12,18 +12,13 @@ class AccountPaymentGroup(models.Model):
     _inherit = "account.payment.group"
     _order = "payment_date desc, document_number desc, id desc"
 
-    # document_number = fields.Char(
-    #     string=_('Document Number'),
-    #     related='move_id.document_number',
-    #     readonly=True,
-    #     store=True,
-    #     )
     document_number = fields.Char(
         string='Document Number',
         copy=False,
         readonly=True,
         states={'draft': [('readonly', False)]},
         track_visibility='always',
+        index=True,
     )
     document_sequence_id = fields.Many2one(
         related='receiptbook_id.sequence_id',
@@ -61,6 +56,7 @@ class AccountPaymentGroup(models.Model):
         track_visibility='always',
         states={'draft': [('readonly', False)]},
         ondelete='restrict',
+        auto_join=True,
     )
     document_type_id = fields.Many2one(
         related='receiptbook_id.document_type_id',
@@ -68,13 +64,14 @@ class AccountPaymentGroup(models.Model):
     )
     next_number = fields.Integer(
         # related='receiptbook_id.sequence_id.number_next_actual',
-        compute='_get_next_number',
+        compute='_compute_next_number',
         string='Next Number',
     )
     name = fields.Char(
         compute='_compute_name',
         string='Document Reference',
         store=True,
+        index=True,
     )
 
     _sql_constraints = [
@@ -85,7 +82,7 @@ class AccountPaymentGroup(models.Model):
     @api.depends(
         'receiptbook_id.sequence_id.number_next_actual',
     )
-    def _get_next_number(self):
+    def _compute_next_number(self):
         """
         show next number only for payments without number and on draft state
         """
@@ -186,19 +183,24 @@ class AccountPaymentGroup(models.Model):
                 'document_number': rec.document_number,
                 'receiptbook_id': rec.receiptbook_id.id,
             })
+            if rec.receiptbook_id.mail_template_id:
+                rec.message_post_with_template(
+                    rec.receiptbook_id.mail_template_id.id,
+                )
         return super(AccountPaymentGroup, self).post()
 
-    @api.one
+    @api.multi
     @api.constrains('receiptbook_id', 'company_id')
     def _check_company_id(self):
         """
         Check receiptbook_id and voucher company
         """
-        if (self.receiptbook_id and
-                self.receiptbook_id.company_id != self.company_id):
-            raise ValidationError(_(
-                'The company of the receiptbook and of the '
-                'payment must be the same!'))
+        for rec in self:
+            if (rec.receiptbook_id and
+                    rec.receiptbook_id.company_id != rec.company_id):
+                raise ValidationError(_(
+                    'The company of the receiptbook and of the '
+                    'payment must be the same!'))
 
     @api.multi
     @api.constrains('receiptbook_id', 'document_number')

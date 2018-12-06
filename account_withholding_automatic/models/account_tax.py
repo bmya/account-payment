@@ -73,7 +73,7 @@ class AccountTax(models.Model):
         'Python Code',
         default='''
 # withholdable_base_amount
-# payment_group: account.payment.group object
+# payment: account.payment.group object
 # partner: res.partner object (commercial partner of payment group)
 # withholding_tax: account.tax.withholding object
 
@@ -92,17 +92,18 @@ result = withholdable_base_amount * 0.10
     #     help="For taxes of type percentage, enter % ratio between 0-1."
     #     )
 
-    @api.one
+    @api.multi
     @api.constrains(
         'withholding_non_taxable_amount',
         'withholding_non_taxable_minimum')
     def check_withholding_non_taxable_amounts(self):
-        if (
-                self.withholding_non_taxable_amount >
-                self.withholding_non_taxable_minimum):
-            raise ValidationError(_(
-                'Non-taxable Amount can not be greater than Non-taxable '
-                'Minimum'))
+        for rec in self:
+            if (
+                    rec.withholding_non_taxable_amount >
+                    rec.withholding_non_taxable_minimum):
+                raise ValidationError(_(
+                    'Non-taxable Amount can not be greater than Non-taxable '
+                    'Minimum'))
 
     @api.multi
     def _get_rule(self, voucher):
@@ -238,25 +239,36 @@ result = withholdable_base_amount * 0.10
         """
         to_date = fields.Date.from_string(
             payment_group.payment_date) or datetime.date.today()
-        previos_payment_groups_domain = [
+        common_previous_domain = [
             ('partner_id.commercial_partner_id', '=',
                 payment_group.commercial_partner_id.id),
-            ('state', '=', 'posted'),
-            ('id', '!=', payment_group.id),
         ]
         if self.withholding_accumulated_payments == 'month':
             from_relative_delta = relativedelta(day=1)
         elif self.withholding_accumulated_payments == 'year':
             from_relative_delta = relativedelta(day=1, month=1)
         from_date = to_date + from_relative_delta
-        previos_payment_groups_domain += [
+        common_previous_domain += [
             ('payment_date', '<=', to_date),
             ('payment_date', '>=', from_date),
         ]
-        return (
-            previos_payment_groups_domain,
-            previos_payment_groups_domain + [
-                ('tax_withholding_id', '=', self.id)])
+
+        previous_payment_groups_domain = common_previous_domain + [
+            ('state', 'not in', ['draft', 'cancel', 'confirmed']),
+            ('id', '!=', payment_group.id),
+        ]
+        # for compatibility with public_budget we check state not in and not
+        # state in posted. Just in case someone implements payments cancelled
+        # on posted payment group, we remove the cancel payments (not the
+        # draft ones as they are also considered by public_budget)
+        previous_payments_domain = common_previous_domain + [
+            ('payment_group_id.state', 'not in',
+                ['draft', 'cancel', 'confirmed']),
+            ('state', '!=', 'cancel'),
+            ('tax_withholding_id', '=', self.id),
+            ('payment_group_id.id', '!=', payment_group.id),
+        ]
+        return (previous_payment_groups_domain, previous_payments_domain)
 
     @api.multi
     def get_withholding_vals(self, payment_group):
@@ -270,7 +282,41 @@ result = withholdable_base_amount * 0.10
         # voucher = self.voucher_id
         withholdable_invoiced_amount = payment_group.selected_debt_untaxed
         withholdable_advanced_amount = 0.0
-        if self.withholding_advances:
+        # if the unreconciled_amount is negative, then the user wants to make
+        # a partial payment. To get the right untaxed amount we need to know
+        # which invoice is going to be paid, we only allow partial payment
+        # on last invoice
+        if payment_group.unreconciled_amount < 0.0:
+            withholdable_advanced_amount = 0.0
+
+            sign = payment_group.partner_type == 'supplier' and -1.0 or 1.0
+            sorted_to_pay_lines = sorted(
+                payment_group.to_pay_move_line_ids,
+                key=lambda a: a.date_maturity or a.date)
+
+            # last line to be reconciled
+            partial_line = sorted_to_pay_lines[-1]
+            if sign * partial_line.amount_residual < \
+                    sign * payment_group.unreconciled_amount:
+                raise ValidationError(_(
+                    'Seleccionó deuda por %s pero aparentente desea pagar '
+                    ' %s. En la deuda seleccionada hay algunos comprobantes de'
+                    ' mas que no van a poder ser pagados (%s). Deberá quitar '
+                    ' dichos comprobantes de la deuda seleccionada para poder '
+                    'hacer el correcto cálculo de las retenciones.' % (
+                        payment_group.selected_debt,
+                        payment_group.to_pay_amount,
+                        partial_line.move_id.display_name,
+                        )))
+
+            invoice_factor = partial_line.invoice_id and \
+                partial_line.invoice_id._get_tax_factor() or 1.0
+
+            # le descontamos de la base imponible el saldo que no se esta
+            # pagando descontado de iva
+            withholdable_invoiced_amount -= (
+                sign * payment_group.unreconciled_amount * invoice_factor)
+        elif self.withholding_advances:
             withholdable_advanced_amount = payment_group.unreconciled_amount
 
         accumulated_amount = previous_withholding_amount = 0.0
@@ -280,13 +326,22 @@ result = withholdable_base_amount * 0.10
             same_period_payments = self.env['account.payment.group'].search(
                 previos_payment_groups_domain)
             for same_period_payment_group in same_period_payments:
-                # obtenemos importe acumulado sujeto a retencion de voucher
-                # anteriores
-                accumulated_amount += (
-                    same_period_payment_group.matched_amount)
-                if self.withholding_advances:
+                # obtenemos importe acumulado sujeto a retencion de pagos
+                # anteriores. Por compatibilidad con public_budget aceptamos
+                # pagos en otros estados no validados donde el matched y
+                # unmatched no se computaron, por eso agragamos la condición
+                if same_period_payment_group.state == 'posted':
                     accumulated_amount += (
-                        same_period_payment_group.unmatched_amount)
+                        same_period_payment_group.matched_amount)
+                    if self.withholding_advances:
+                        accumulated_amount += (
+                            same_period_payment_group.unmatched_amount)
+                else:
+                    accumulated_amount += (
+                        same_period_payment_group.to_pay_amount)
+                    if self.withholding_advances:
+                        accumulated_amount += (
+                            same_period_payment_group.unreconciled_amount)
             previous_withholding_amount = sum(
                 self.env['account.payment'].search(
                     previos_payments_domain).mapped('amount'))
@@ -329,13 +384,6 @@ result = withholdable_base_amount * 0.10
                 (total_amount > withholding_non_taxable_minimum) and (
                     withholdable_base_amount * percentage + fix_amount) or 0.0)
 
-        if self.withholding_sequence_id:
-            # por ahora lo hacemos simple, no como en cheques que si no
-            # se guarda no consume
-            withholding_number = self.withholding_sequence_id.next_by_id()
-        else:
-            withholding_number = False
-
         return {
             'withholdable_invoiced_amount': withholdable_invoiced_amount,
             'withholdable_advanced_amount': withholdable_advanced_amount,
@@ -350,5 +398,4 @@ result = withholdable_base_amount * 0.10
             'tax_withholding_id': self.id,
             'automatic': True,
             'comment': comment,
-            'withholding_number': withholding_number,
         }

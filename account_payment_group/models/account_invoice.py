@@ -57,9 +57,6 @@ class AccountInvoice(models.Model):
         if self.state != 'open':
             raise ValidationError(_(
                 'You can only register payment if invoice is open'))
-        # target = 'new'
-        # if self.company_id.double_validation:
-        #     target = 'current'
         return {
             'name': _('Register Payment'),
             'view_type': 'form',
@@ -67,10 +64,13 @@ class AccountInvoice(models.Model):
             'res_model': 'account.payment.group',
             'view_id': False,
             'target': 'current',
-            # 'target': target,
             'type': 'ir.actions.act_window',
-            # 'domain': [('id', 'in', aml.ids)],
             'context': {
+                # si bien el partner se puede adivinar desde los apuntes
+                # con el default de payment group, preferimos mandar por aca
+                # ya que puede ser un contacto y no el commercial partner (y
+                # en los apuntes solo hay commercial partner)
+                'default_partner_id': self.partner_id.id,
                 'to_pay_move_line_ids': self.open_move_line_ids.ids,
                 'pop_up': True,
                 'default_company_id': self.company_id.id,
@@ -105,8 +105,22 @@ class AccountInvoice(models.Model):
                     'default_partner_type': partner_type,
                 }
 
-                # factura de proveedor o reembolso a cliente, es saliente
-                if rec.type in ['in_invoice', 'out_refund']:
+                payment_group = rec.env[
+                    'account.payment.group'].with_context(
+                        pay_context).create({
+                            'payment_date': rec.date_invoice
+                        })
+                # el difference es positivo para facturas (de cliente o
+                # proveedor) pero negativo para NC.
+                # para factura de proveedor o NC de cliente es outbound
+                # para factura de cliente o NC de proveedor es inbound
+                # igualmente lo hacemos con el difference y no con el type
+                # por las dudas de que facturas en negativo
+                if (
+                        partner_type == 'supplier' and
+                        payment_group.payment_difference >= 0.0 or
+                        partner_type == 'customer' and
+                        payment_group.payment_difference < 0.0):
                     payment_type = 'outbound'
                     payment_methods = pay_journal.outbound_payment_method_ids
                 else:
@@ -118,18 +132,14 @@ class AccountInvoice(models.Model):
                 if not payment_method:
                     raise ValidationError(_(
                         'Pay now journal must have manual method!'))
-                payment_group = rec.env[
-                    'account.payment.group'].with_context(
-                        pay_context).create({
-                            'payment_date': rec.date_invoice
-                        })
+
                 payment_group.payment_ids.create({
                     'payment_group_id': payment_group.id,
                     'payment_type': payment_type,
                     'partner_type': partner_type,
                     'company_id': rec.company_id.id,
                     'partner_id': payment_group.partner_id.id,
-                    'amount': payment_group.payment_difference,
+                    'amount': abs(payment_group.payment_difference),
                     'journal_id': pay_journal.id,
                     'payment_method_id': payment_method.id,
                     'payment_date': rec.date_invoice,
@@ -156,3 +166,23 @@ class AccountInvoice(models.Model):
             result['views'] = [(res and res.id or False, 'form')]
             result['res_id'] = self.payment_group_ids.id
         return result
+
+    @api.multi
+    def pay_and_reconcile(self, pay_journal, pay_amount=None, date=None,
+                          writeoff_acc=None):
+        res = super(AccountInvoice, self.with_context(
+            create_from_website=True)).pay_and_reconcile(
+                pay_journal, pay_amount=pay_amount, date=date,
+                writeoff_acc=writeoff_acc)
+        return res
+
+    @api.onchange('company_id')
+    def _onchange_company_id(self):
+        self.pay_now_journal_id = False
+
+    @api.multi
+    def action_cancel(self):
+        self.filtered(
+            lambda x: x.state == 'open' and x.pay_now_journal_id).write(
+                {'pay_now_journal_id': False})
+        return super(AccountInvoice, self).action_cancel()

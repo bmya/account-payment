@@ -21,14 +21,6 @@ class AccountPaymentGroup(models.Model):
     _order = "payment_date desc"
     _inherit = 'mail.thread'
 
-    # campos copiados de payment
-    # payment_type = fields.Selection(
-    #     [('outbound', 'Send Money'), ('inbound', 'Receive Money')],
-    #     string='Payment Type',
-    #     required=True,
-    #     readonly=True,
-    #     states={'draft': [('readonly', False)]},
-    # )
     company_id = fields.Many2one(
         'res.company',
         string='Company',
@@ -57,6 +49,7 @@ class AccountPaymentGroup(models.Model):
         states={'draft': [('readonly', False)]},
         track_visibility='always',
         change_default=True,
+        index=True,
     )
     commercial_partner_id = fields.Many2one(
         related='partner_id.commercial_partner_id',
@@ -78,6 +71,7 @@ class AccountPaymentGroup(models.Model):
         copy=False,
         readonly=True,
         states={'draft': [('readonly', False)]},
+        index=True,
     )
     communication = fields.Char(
         string='Memo',
@@ -87,16 +81,6 @@ class AccountPaymentGroup(models.Model):
     notes = fields.Text(
         string='Notes'
     )
-
-    # campos nuevos
-    # reconcile = fields.Selection([
-    #     ('invoices', 'Invoices'),
-    #     ('move_lines', 'Entry Lines')],
-    #     required=True,
-    #     default='move_lines',
-    #     # default='invoices',
-    # )
-    # rename fields or labels
     matched_amount = fields.Monetary(
         compute='_compute_matched_amounts',
         currency_field='currency_id',
@@ -105,26 +89,6 @@ class AccountPaymentGroup(models.Model):
         compute='_compute_matched_amounts',
         currency_field='currency_id',
     )
-
-    @api.multi
-    @api.depends(
-        'state',
-        'payments_amount',
-        'matched_move_line_ids.payment_group_matched_amount')
-    def _compute_matched_amounts(self):
-        for rec in self:
-            if rec.state != 'posted':
-                continue
-            # damos vuelta signo porque el payments_amount tmb lo da vuelta,
-            # en realidad porque siempre es positivo y se define en funcion
-            # a si es pago entrante o saliente
-            sign = rec.partner_type == 'supplier' and -1.0 or 1.0
-            rec.matched_amount = sign * sum(
-                rec.matched_move_line_ids.with_context(
-                    payment_group_id=rec.id).mapped(
-                        'payment_group_matched_amount'))
-            rec.unmatched_amount = rec.payments_amount - rec.matched_amount
-
     selected_finacial_debt = fields.Monetary(
         string='Selected Financial Debt',
         compute='_compute_selected_debt',
@@ -141,7 +105,7 @@ class AccountPaymentGroup(models.Model):
         compute='_compute_selected_debt',
     )
     unreconciled_amount = fields.Monetary(
-        string='Adjusment / Advance',
+        string='Adjustment / Advance',
         readonly=True,
         states={'draft': [('readonly', False)]},
     )
@@ -155,17 +119,11 @@ class AccountPaymentGroup(models.Model):
         states={'draft': [('readonly', False)]},
         track_visibility='always',
     )
-
     payments_amount = fields.Monetary(
         compute='_compute_payments_amount',
         string='Amount',
         track_visibility='always',
     )
-    # name = fields.Char(
-    #     readonly=True,
-    #     copy=False,
-    #     default="Draft Payment"
-    # )   # The name is attributed upon post()
     state = fields.Selection([
         ('draft', 'Draft'),
         ('confirmed', 'Confirmed'),
@@ -173,20 +131,21 @@ class AccountPaymentGroup(models.Model):
         # ('sent', 'Sent'),
         # ('reconciled', 'Reconciled')
         ('cancel', 'Cancelled'),
-    ], readonly=True, default='draft', copy=False, string="Status",
+    ],
+        readonly=True,
+        default='draft',
+        copy=False,
+        string="Status",
         track_visibility='onchange',
+        index=True,
     )
-    move_lines_domain = (
-        "["
-        "('partner_id.commercial_partner_id', '=', commercial_partner_id),"
-        "('account_id.internal_type', '=', account_internal_type),"
-        "('account_id.reconcile', '=', True),"
-        "('reconciled', '=', False),"
-        "('company_id', '=', company_id),"
-        # '|',
-        # ('amount_residual', '!=', False),
-        # ('amount_residual_currency', '!=', False),
-        "]")
+    move_lines_domain = [
+        # ('partner_id.commercial_partner_id', '=', commercial_partner_id),
+        # ('account_id.internal_type', '=', account_internal_type),
+        ('account_id.reconcile', '=', True),
+        ('reconciled', '=', False),
+        # ('company_id', '=', company_id),
+    ]
     debt_move_line_ids = fields.Many2many(
         'account.move.line',
         # por alguna razon el related no funciona bien ni con states ni
@@ -236,22 +195,58 @@ class AccountPaymentGroup(models.Model):
         compute='_compute_payment_pop_up',
         default=lambda x: x._context.get('pop_up', False),
     )
+    payment_difference = fields.Monetary(
+        compute='_compute_payment_difference',
+        # TODO rename field or remove string
+        # string='Remaining Residual',
+        readonly=True,
+        string="Payments Difference",
+        help="Difference between selected debt (or to pay amount) and "
+        "payments amount"
+    )
+    payment_ids = fields.One2many(
+        'account.payment',
+        'payment_group_id',
+        string='Payment Lines',
+        ondelete='cascade',
+        copy=False,
+        readonly=True,
+        states={
+            'draft': [('readonly', False)],
+            'confirmed': [('readonly', False)]},
+        auto_join=True,
+    )
+    account_internal_type = fields.Char(
+        compute='_compute_account_internal_type'
+    )
+    move_line_ids = fields.Many2many(
+        'account.move.line',
+        # related o2m a o2m solo toma el primer o2m y le hace o2m, por eso
+        # hacemos computed
+        # related='payment_ids.move_line_ids',
+        compute='_compute_move_lines',
+        readonly=True,
+        copy=False,
+    )
 
     @api.multi
-    def onchange(self, values, field_name, field_onchange):
-        """
-        En este caso es distinto el fix al uso que le damos para domains [0][2]
-        de campos x2many en vista. En este caso lo necesitamos porque la mejora
-        que hicieron de vistas de alguna menra molesta y hace pensar que
-        estamos escribiendo los move lines, con esto se soluciona
-        """
-        for field in field_onchange.keys():
-            if field.startswith((
-                    'to_pay_move_line_ids.',
-                    'debt_move_line_ids.')):
-                del field_onchange[field]
-        return super(AccountPaymentGroup, self).onchange(
-            values, field_name, field_onchange)
+    @api.depends(
+        'state',
+        'payments_amount',
+        'matched_move_line_ids.payment_group_matched_amount')
+    def _compute_matched_amounts(self):
+        for rec in self:
+            if rec.state != 'posted':
+                continue
+            # damos vuelta signo porque el payments_amount tmb lo da vuelta,
+            # en realidad porque siempre es positivo y se define en funcion
+            # a si es pago entrante o saliente
+            sign = rec.partner_type == 'supplier' and -1.0 or 1.0
+            rec.matched_amount = sign * sum(
+                rec.matched_move_line_ids.with_context(
+                    payment_group_id=rec.id).mapped(
+                        'payment_group_matched_amount'))
+            rec.unmatched_amount = rec.payments_amount - rec.matched_amount
 
     @api.multi
     @api.depends('to_pay_move_line_ids')
@@ -327,7 +322,7 @@ class AccountPaymentGroup(models.Model):
                 payment_subtype = 'simple'
             rec.payment_subtype = payment_subtype
 
-    @api.one
+    @api.multi
     def _compute_matched_move_line_ids(self):
         """
         Lar partial reconcile vinculan dos apuntes con credit_move_id y
@@ -337,76 +332,20 @@ class AccountPaymentGroup(models.Model):
         (debit_move_id), son cosas que se pagaron con este pago. Repetimos
         al revz (debit_move_id vs credit_move_id)
         """
+        for rec in self:
+            lines = rec.move_line_ids.browse()
+            # not sure why but self.move_line_ids dont work the same way
+            payment_lines = rec.payment_ids.mapped('move_line_ids')
 
-        lines = self.move_line_ids.browse()
-        # not sure why but self.move_line_ids dont work the same way
-        payment_lines = self.payment_ids.mapped('move_line_ids')
+            reconciles = rec.env['account.partial.reconcile'].search([
+                ('credit_move_id', 'in', payment_lines.ids)])
+            lines |= reconciles.mapped('debit_move_id')
 
-        # este metodo deberia ser mas eficiente que el de abajo
-        reconciles = self.env['account.partial.reconcile'].search([
-            ('credit_move_id', 'in', payment_lines.ids)])
-        lines |= reconciles.mapped('debit_move_id')
+            reconciles = rec.env['account.partial.reconcile'].search([
+                ('debit_move_id', 'in', payment_lines.ids)])
+            lines |= reconciles.mapped('credit_move_id')
 
-        reconciles = self.env['account.partial.reconcile'].search([
-            ('debit_move_id', 'in', payment_lines.ids)])
-        lines |= reconciles.mapped('credit_move_id')
-
-        # otro metodo, tal vez mas claro pero menos eficiente
-        # for aml in payment_lines:
-        #     if aml.account_id.reconcile:
-        #         if aml.credit > 0:
-        #             lines |= aml.matched_debit_ids.mapped('debit_move_id')
-        #         else:
-        #             lines |= aml.matched_credit_ids.mapped('credit_move_id')
-
-        self.matched_move_line_ids = lines - payment_lines
-
-    payment_difference = fields.Monetary(
-        compute='_compute_payment_difference',
-        # TODO rename field or remove string
-        # string='Remaining Residual',
-        readonly=True,
-        string="Payments Difference",
-        help="Difference between selected debt (or to pay amount) and "
-        "payments amount"
-    )
-    # TODO por ahora no implementamos
-    # payment_difference_handling = fields.Selection(
-    #     [('open', 'Keep open'), ('reconcile', 'Mark invoice as fully paid')],
-    #     default='open',
-    #     string="Payment Difference",
-    #     copy=False
-    # )
-    # TODO add journal?
-    # writeoff_account_id = fields.Many2one(
-    #     'account.account',
-    #     string="Difference Account",
-    #     domain=[('deprecated', '=', False)],
-    #     copy=False
-    # )
-    payment_ids = fields.One2many(
-        'account.payment',
-        'payment_group_id',
-        string='Payment Lines',
-        ondelete='cascade',
-        copy=False,
-        readonly=True,
-        states={
-            'draft': [('readonly', False)],
-            'confirmed': [('readonly', False)]},
-    )
-    move_line_ids = fields.Many2many(
-        'account.move.line',
-        # related o2m a o2m solo toma el primer o2m y le hace o2m, por eso
-        # hacemos computed
-        # related='payment_ids.move_line_ids',
-        compute='_compute_move_lines',
-        readonly=True,
-        copy=False,
-    )
-    account_internal_type = fields.Char(
-        compute='_compute_account_internal_type'
-    )
+            rec.matched_move_line_ids = lines - payment_lines
 
     @api.multi
     @api.depends('payment_ids.move_line_ids')
@@ -431,11 +370,11 @@ class AccountPaymentGroup(models.Model):
             rec.payment_difference = rec.to_pay_amount - rec.payments_amount
 
     @api.multi
-    @api.depends('payment_ids.amount_company_currency')
+    @api.depends('payment_ids.signed_amount_company_currency')
     def _compute_payments_amount(self):
         for rec in self:
             rec.payments_amount = sum(rec.payment_ids.mapped(
-                'amount_company_currency'))
+                'signed_amount_company_currency'))
             # payments_amount = sum([
             #     x.payment_type == 'inbound' and
             #     x.amount_company_currency or -x.amount_company_currency for
@@ -444,20 +383,8 @@ class AccountPaymentGroup(models.Model):
             #     rec.partner_type == 'supplier' and
             #     -payments_amount or payments_amount)
 
-    # TODO analizar en v10
-    # el onchange no funciona bien en o2m, si usamos write se escribe pero no
-    # se actualiza en interfaz lo cual puede ser confuzo, por ahora lo
-    # comentamos
-    # @api.onchange('payment_date')
-    # def change_payment_date(self):
-    #     # self.payment_ids.write({'payment_date': self.payment_date})
-    #     for line in self.payment_ids:
-    #         line.payment_date = self.payment_date
-
-    @api.one
-    # @api.onchange(
+    @api.multi
     @api.depends(
-        # 'to_pay_move_line_ids',
         'to_pay_move_line_ids.amount_residual',
         'to_pay_move_line_ids.amount_residual_currency',
         'to_pay_move_line_ids.currency_id',
@@ -465,59 +392,22 @@ class AccountPaymentGroup(models.Model):
         'payment_date',
         'currency_id',
     )
-    # @api.constrains(
-    #     'to_pay_move_line_ids',
-    #     'payment_date',
-    #     'currency_id',
-    # )
-    # def set_selected_debt(self):
     def _compute_selected_debt(self):
-        # # we dont make it computed because we want to store value.
-        # # TODO check if odoo implement this kind of hybrid field
-        # payment_currency = self.currency_id or self.company_id.currency_id
-
-        # total_untaxed = total = 0
-        # for rml in self.to_pay_move_line_ids:
-        #     # factor for total_untaxed
-        #     invoice = rml.invoice_id
-        #     factor = invoice and invoice._get_tax_factor() or 1.0
-
-        #     # si tiene moneda y es distinta convertimos el monto de moneda
-        #     # si tiene moneda y es igual llevamos el monto de moneda
-        #     # si no tiene moneda y es distinta convertimos el monto comun
-        #     # si no tiene moneda y es igual llevamos el monto comun
-        #     if rml.currency_id:
-        #         if rml.currency_id != payment_currency:
-        #             line_amount = rml.currency_id.with_context(
-        #                 date=self.payment_date).compute(
-        #                 rml.amount_residual_currency, payment_currency)
-        #         else:
-        #             line_amount = rml.amount_residual_currency
-        #     else:
-        #         if self.company_id.currency_id != payment_currency:
-        #             line_amount = self.company_id.currency_id.with_context(
-        #                 date=self.payment_date).compute(
-        #                 rml.amount_residual, payment_currency)
-        #         else:
-        #             line_amount = rml.amount_residual
-        #     total += line_amount
-        #     total_untaxed += line_amount * factor
-        # self.selected_debt = abs(total)
-        # self.selected_debt_untaxed = abs(total_untaxed)
-        selected_finacial_debt = 0.0
-        selected_debt = 0.0
-        selected_debt_untaxed = 0.0
-        for line in self.to_pay_move_line_ids:
-            selected_finacial_debt += line.financial_amount_residual
-            selected_debt += line.amount_residual
-            # factor for total_untaxed
-            invoice = line.invoice_id
-            factor = invoice and invoice._get_tax_factor() or 1.0
-            selected_debt_untaxed += line.amount_residual * factor
-        sign = self.partner_type == 'supplier' and -1.0 or 1.0
-        self.selected_finacial_debt = selected_finacial_debt * sign
-        self.selected_debt = selected_debt * sign
-        self.selected_debt_untaxed = selected_debt_untaxed * sign
+        for rec in self:
+            selected_finacial_debt = 0.0
+            selected_debt = 0.0
+            selected_debt_untaxed = 0.0
+            for line in rec.to_pay_move_line_ids:
+                selected_finacial_debt += line.financial_amount_residual
+                selected_debt += line.amount_residual
+                # factor for total_untaxed
+                invoice = line.invoice_id
+                factor = invoice and invoice._get_tax_factor() or 1.0
+                selected_debt_untaxed += line.amount_residual * factor
+            sign = rec.partner_type == 'supplier' and -1.0 or 1.0
+            rec.selected_finacial_debt = selected_finacial_debt * sign
+            rec.selected_debt = selected_debt * sign
+            rec.selected_debt_untaxed = selected_debt_untaxed * sign
 
     @api.multi
     @api.depends(
@@ -531,27 +421,35 @@ class AccountPaymentGroup(models.Model):
         for rec in self:
             rec.unreconciled_amount = rec.to_pay_amount - rec.selected_debt
 
+    @api.multi
     @api.onchange('partner_id', 'partner_type', 'company_id')
     def _refresh_payments_and_move_lines(self):
         # clean actual invoice and payments
         # no hace falta
         if self._context.get('pop_up'):
             return
-        # not sure why but state field is false on payments so they can
-        # not be unliked, this fix that
-        self.invalidate_cache(['payment_ids'])
-        self.payment_ids.unlink()
-        self.add_all()
-        # if self.payment_subtype == 'double_validation':
-        #     self._add_all('to_pay_move_line_ids')
-        # else:
-        #     self._add_all('debt_move_line_ids')
-        # if self.to_pay_move_line_ids:
-        #     raise UserError('asdasdasd')
-        # else:
-        #     self.debt_move_line_ids = False
-        #     self.payment_ids.unlink()
-        #     self.add_all()
+        for rec in self:
+            # not sure why but state field is false on payments so they can
+            # not be unliked, this fix that
+            rec.invalidate_cache(['payment_ids'])
+            rec.payment_ids.unlink()
+            rec.add_all()
+
+    @api.multi
+    def onchange(self, values, field_name, field_onchange):
+        """Necesitamos hacer esto porque los onchange que agregan lineas,
+        cuando se va a guardar el registro, terminan creando registros.
+        """
+        fields = []
+        for field in field_onchange.keys():
+            if field.startswith((
+                    'to_pay_move_line_ids.',
+                    'debt_move_line_ids.')):
+                fields.append(field)
+        for field in fields:
+            del field_onchange[field]
+        return super(AccountPaymentGroup, self).onchange(
+            values, field_name, field_onchange)
 
     @api.multi
     def _get_to_pay_move_lines_domain(self):
@@ -599,7 +497,8 @@ class AccountPaymentGroup(models.Model):
             if len(internal_type) != 1:
                 raise ValidationError(_(
                     'You can not send to pay lines from different partners'))
-            rec['partner_id'] = partner[0].id
+            rec['partner_id'] = self._context.get(
+                'default_partner_id', partner[0].id)
             rec['partner_type'] = MAP_ACCOUNT_TYPE_PARTNER_TYPE[
                 internal_type[0]]
             # rec['currency_id'] = invoice['currency_id'][0]
@@ -608,25 +507,6 @@ class AccountPaymentGroup(models.Model):
             #     'inbound' or 'outbound')
             rec['to_pay_move_line_ids'] = [(6, False, to_pay_move_line_ids)]
         return rec
-        # print 'rec', rec
-        # invoice_defaults = self.resolve_2many_commands(
-        #     'invoice_ids', rec.get('invoice_ids'))
-        # print 'aaaaaa'
-        # print 'aaaaaa', self._context
-        # print 'aaaaaa', invoice_defaults
-        # print 'aaaaaa', invoice_defaults
-        # if invoice_defaults and len(invoice_defaults) == 1:
-        #     invoice = invoice_defaults[0]
-        #     rec['communication'] = invoice[
-        #         'reference'] or invoice['name'] or invoice['number']
-        #     rec['currency_id'] = invoice['currency_id'][0]
-        #     rec['payment_type'] = invoice['type'] in (
-        #         'out_invoice', 'in_refund') and 'inbound' or 'outbound'
-        #     rec['partner_type'] = MAP_INVOICE_TYPE_PARTNER_TYPE[
-        #         invoice['type']]
-        #     rec['partner_id'] = invoice['partner_id'][0]
-        #     # rec['amount'] = invoice['residual']
-        # print 'rec', rec
 
     @api.multi
     def button_journal_entries(self):
@@ -644,8 +524,8 @@ class AccountPaymentGroup(models.Model):
     def unreconcile(self):
         for rec in self:
             rec.payment_ids.unreconcile()
-            # TODO en alguos casos setear sent como en payment?
-            rec.write({'state': 'posted'})
+        # TODO en alguos casos setear sent como en payment?
+        self.write({'state': 'posted'})
 
     @api.multi
     def cancel(self):
@@ -657,7 +537,7 @@ class AccountPaymentGroup(models.Model):
                 # if rec.to_pay_move_line_ids:
                 #     move.line_ids.remove_move_reconcile()
             rec.payment_ids.cancel()
-            rec.state = 'cancel'
+        self.write({'state': 'cancel'})
 
     @api.multi
     def action_draft(self):
@@ -678,7 +558,7 @@ class AccountPaymentGroup(models.Model):
             if len(accounts) > 1:
                 raise ValidationError(_(
                     'To Pay Lines must be of the same account!'))
-            rec.state = 'confirmed'
+        self.write({'state': 'confirmed'})
 
     @api.multi
     def post(self):
@@ -686,6 +566,12 @@ class AccountPaymentGroup(models.Model):
         # break behaviour, for eg. with demo user error writing account.account
         # and with other users, error with block date of accounting
         # TODO we should look for a better way to solve this
+
+        create_from_website = self._context.get(
+            'create_from_website', False)
+        create_from_statement = self._context.get(
+            'create_from_statement', False)
+        create_from_expense = self._context.get('create_from_expense', False)
         self = self.with_context({})
         for rec in self:
             # TODO if we want to allow writeoff then we can disable this
@@ -694,58 +580,30 @@ class AccountPaymentGroup(models.Model):
                 raise ValidationError(_(
                     'You can not confirm a payment group without payment '
                     'lines!'))
+            # si el pago se esta posteando desde statements y hay doble
+            # validacion no verificamos que haya deuda seleccionada
             if (rec.payment_subtype == 'double_validation' and
-                    rec.payment_difference):
+                    rec.payment_difference and (not create_from_statement and
+                                                not create_from_expense)):
                 raise ValidationError(_(
                     'To Pay Amount and Payment Amount must be equal!'))
 
             writeoff_acc_id = False
             writeoff_journal_id = False
 
-            rec.payment_ids.post()
+            # al crear desde website odoo crea primero el pago y lo postea
+            # y no debemos re-postearlo
+            if not create_from_website and not create_from_expense:
+                rec.payment_ids.filtered(lambda x: x.state == 'draft').post()
+
             counterpart_aml = rec.payment_ids.mapped('move_line_ids').filtered(
                 lambda r: not r.reconciled and r.account_id.internal_type in (
                     'payable', 'receivable'))
+
             # porque la cuenta podria ser no recivible y ni conciliable
             # (por ejemplo en sipreco)
             if counterpart_aml and rec.to_pay_move_line_ids:
                 (counterpart_aml + (rec.to_pay_move_line_ids)).reconcile(
                     writeoff_acc_id, writeoff_journal_id)
+
             rec.state = 'posted'
-
-    # @api.multi
-    # def action_create_debit_credit_note(self):
-    #     self.ensure_one()
-    #     if self.partner_type == 'supplier':
-    #         view_id = self.env.ref('account.invoice_supplier_form').id
-    #         invoice_type = 'in_'
-    #     else:
-    #         view_id = self.env.ref('account.invoice_form').id
-    #         invoice_type = 'out_'
-
-    #     print 'self._context', self._context
-    #     if self._context.get('refund'):
-    #         name = _('Credit Note')
-    #         invoice_type += 'refund'
-    #         # for compatibility with account_document and loc ar
-    #         internal_type = False
-    #     else:
-    #         name = _('Debit Note')
-    #         invoice_type += 'invoice'
-    #         internal_type = 'debit_note'
-
-    #     return {
-    #         'name': name,
-    #         'view_type': 'form',
-    #         'view_mode': 'form',
-    #         'res_model': 'account.invoice',
-    #         'view_id': view_id,
-    #         'type': 'ir.actions.act_window',
-    #         'context': {
-    #             'default_partner_id': self.partner_id.id,
-    #             'default_company_id': self.company_id.id,
-    #             'default_type': invoice_type,
-    #             'internal_type': internal_type,
-    #         },
-    #         # 'domain': [('payment_id', 'in', self.payment_ids.ids)],
-    #     }

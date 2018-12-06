@@ -1,6 +1,6 @@
 {
     "name": "Payment Groups with Accounting Documents",
-    "version": "9.0.1.2.0",
+    "version": "11.0.1.1.0",
     "author": "ADHOC SA,Odoo Community Association (OCA)",
     "license": "AGPL-3",
     "category": "Accounting",
@@ -11,13 +11,14 @@
     "data": [
         'view/account_payment_group_view.xml',
         'view/account_payment_view.xml',
+        'view/account_payment_receiptbook_view.xml',
         'wizards/account_payment_group_invoice_wizard_view.xml',
     ],
     "demo": [
     ],
     'images': [
     ],
-    'installable': False,
+    'installable': True,
     'auto_install': True,
     'post_init_hook': 'post_init_hook',
 }

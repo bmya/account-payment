@@ -24,6 +24,7 @@ class AccountCheckOperation(models.Model):
         default=fields.Date.context_today,
         # default=lambda self: fields.Datetime.now(),
         required=True,
+        index=True,
     )
     check_id = fields.Many2one(
         'account.check',
@@ -31,6 +32,7 @@ class AccountCheckOperation(models.Model):
         required=True,
         ondelete='cascade',
         auto_join=True,
+        index=True,
     )
     operation = fields.Selection([
         # from payments
@@ -57,6 +59,7 @@ class AccountCheckOperation(models.Model):
         ('cancel', 'Cancel'),
     ],
         required=True,
+        index=True,
     )
     origin_name = fields.Char(
         compute='_compute_origin_name'
@@ -115,6 +118,7 @@ class AccountCheckOperation(models.Model):
             ('account.invoice', 'Invoice'),
             ('account.move', 'Journal Entry'),
             ('account.move.line', 'Journal Item'),
+            ('account.bank.statement.line', 'Statement Line'),
         ]
 
 
@@ -128,36 +132,44 @@ class AccountCheck(models.Model):
     operation_ids = fields.One2many(
         'account.check.operation',
         'check_id',
+        auto_join=True,
     )
     name = fields.Char(
         required=True,
         readonly=True,
         copy=False,
         states={'draft': [('readonly', False)]},
+        index=True,
     )
     number = fields.Integer(
         required=True,
         readonly=True,
         states={'draft': [('readonly', False)]},
-        copy=False
+        copy=False,
+        index=True,
     )
     checkbook_id = fields.Many2one(
         'account.checkbook',
         'Checkbook',
         readonly=True,
         states={'draft': [('readonly', False)]},
+        auto_join=True,
+        index=True,
     )
     issue_check_subtype = fields.Selection(
-        related='checkbook_id.issue_check_subtype'
+        related='checkbook_id.issue_check_subtype',
+        readonly=True,
     )
     type = fields.Selection(
         [('issue_check', 'Issue Check'), ('third_check', 'Third Check')],
         readonly=True,
+        index=True,
     )
     partner_id = fields.Many2one(
         related='operation_ids.partner_id',
         readonly=True,
-        store=True
+        store=True,
+        index=True,
     )
     state = fields.Selection([
         ('draft', 'Draft'),
@@ -180,6 +192,7 @@ class AccountCheck(models.Model):
         copy=False,
         compute='_compute_state',
         store=True,
+        index=True,
     )
     issue_date = fields.Date(
         'Issue Date',
@@ -221,7 +234,8 @@ class AccountCheck(models.Model):
     )
     payment_date = fields.Date(
         readonly=True,
-        states={'draft': [('readonly', False)]}
+        states={'draft': [('readonly', False)]},
+        index=True,
     )
     journal_id = fields.Many2one(
         'account.journal',
@@ -229,7 +243,8 @@ class AccountCheck(models.Model):
         required=True,
         domain=[('type', 'in', ['cash', 'bank'])],
         readonly=True,
-        states={'draft': [('readonly', False)]}
+        states={'draft': [('readonly', False)]},
+        index=True,
     )
     company_id = fields.Many2one(
         related='journal_id.company_id',
@@ -441,14 +456,24 @@ class AccountCheck(models.Model):
     def bank_debit(self):
         self.ensure_one()
         if self.state in ['handed']:
-            vals = self.get_bank_vals(
-                'bank_debit', self.journal_id)
-            action_date = self._context.get('action_date')
-            vals['date'] = action_date
-            move = self.env['account.move'].create(vals)
-            self.handed_reconcile(move)
-            move.post()
-            self._add_operation('debited', move, date=action_date)
+            payment_values = self.get_payment_values(self.journal_id)
+            payment = self.env['account.payment'].with_context(
+                default_name=_('Check "%s" debit') % (self.name),
+                force_account_id=self.company_id._get_check_account(
+                    'deferred').id,
+            ).create(payment_values)
+            self.post_payment_check(payment)
+            self.handed_reconcile(payment.move_line_ids.mapped('move_id'))
+            self._add_operation('debited', payment, date=payment.payment_date)
+
+    @api.model
+    def post_payment_check(self, payment):
+        """ No usamos post() porque no puede obtener secuencia, hacemos
+        parecido a los statements donde odoo ya lo genera posteado
+        """
+        # payment.post()
+        move = payment._create_payment_entry(payment.amount)
+        payment.write({'state': 'posted', 'move_name': move.name})
 
     @api.multi
     def handed_reconcile(self, move):
@@ -485,6 +510,9 @@ class AccountCheck(models.Model):
         # TODO la idea es depreciar esto y que si se usa cheques de terceros
         se use la misma cuenta que la del diario y no la cuenta configurada en
         la cia, lo dejamos por ahora por nosotros y 4 clientes que estan asi
+        (cro, ncool, bog).
+        Esto era cuando permitíamos o usabamos diario de efectivo con cash y
+        cheques
         """
         # self.ensure_one()
         # desde los pagos, pueden venir mas de un cheque pero para que
@@ -522,6 +550,7 @@ class AccountCheck(models.Model):
         # buscamos operaciones anteriores a la fecha que definan este estado
         if not force_domain:
             force_domain = []
+
         operations = self.operation_ids.search([
             ('date', '<=', date),
             ('operation', '=', state)] + force_domain)
@@ -571,6 +600,27 @@ class AccountCheck(models.Model):
                 'returned', 'customer', operation.partner_id,
                 self.get_third_check_account())
 
+    @api.model
+    def get_payment_values(self, journal):
+        """ return dictionary with the values to create the reject check
+        payment record.
+        We create an outbound payment instead of a transfer because:
+        1. It is easier to inherit
+        2. Outbound payment withot partner type and partner is not seen by user
+        and we don't want to confuse them with this payments
+        """
+        action_date = self._context.get('action_date', fields.Date.today())
+        return {
+            'amount': self.amount,
+            'currency_id': self.currency_id.id,
+            'journal_id': journal.id,
+            'payment_date': action_date,
+            'payment_type': 'outbound',
+            'payment_method_id':
+            journal._default_outbound_payment_methods().id,
+            # 'check_ids': [(4, self.id, False)],
+        }
+
     @api.multi
     def reject(self):
         self.ensure_one()
@@ -585,13 +635,14 @@ class AccountCheck(models.Model):
                 raise ValidationError(_(
                     'The deposit operation is not linked to a payment.'
                     'If you want to reject you need to do it manually.'))
-            vals = self.get_bank_vals(
-                'bank_reject', journal)
-            action_date = self._context.get('action_date')
-            vals['date'] = action_date
-            move = self.env['account.move'].create(vals)
-            move.post()
-            self._add_operation('rejected', move, date=action_date)
+            payment_vals = self.get_payment_values(journal)
+            payment = self.env['account.payment'].with_context(
+                default_name=_('Check "%s" rejection') % (self.name),
+                force_account_id=self.company_id._get_check_account(
+                    'rejected').id,
+            ).create(payment_vals)
+            self.post_payment_check(payment)
+            self._add_operation('rejected', payment, date=payment.payment_date)
         elif self.state == 'delivered':
             operation = self._get_operation(self.state, True)
             return self.action_create_debit_note(
@@ -674,53 +725,4 @@ class AccountCheck(models.Model):
             'view_id': view_id,
             'res_id': invoice.id,
             'type': 'ir.actions.act_window',
-        }
-
-    @api.multi
-    def get_bank_vals(self, action, journal):
-        self.ensure_one()
-        # TODO improove how we get vals, get them in other functions
-        if action == 'bank_debit':
-            # self.journal_id.default_debit_account_id.id, al debitar
-            # tenemos que usar esa misma
-            credit_account = journal.default_debit_account_id
-            # la contrapartida es la cuenta que reemplazamos en el pago
-            debit_account = self.company_id._get_check_account('deferred')
-            name = _('Check "%s" debit') % (self.name)
-        elif action == 'bank_reject':
-            # al transferir a un banco se usa esta. al volver tiene que volver
-            # por la opuesta
-            # self.destination_journal_id.default_credit_account_id
-            credit_account = journal.default_debit_account_id
-            debit_account = self.company_id._get_check_account('rejected')
-            name = _('Check "%s" rejection') % (self.name)
-        else:
-            raise ValidationError(_(
-                'Action %s not implemented for checks!') % action)
-
-        debit_line_vals = {
-            'name': name,
-            'account_id': debit_account.id,
-            # 'partner_id': partner,
-            'debit': self.amount,
-            'amount_currency': self.amount_currency,
-            'currency_id': self.currency_id.id,
-            # 'ref': ref,
-        }
-        credit_line_vals = {
-            'name': name,
-            'account_id': credit_account.id,
-            # 'partner_id': partner,
-            'credit': self.amount,
-            'amount_currency': self.amount_currency,
-            'currency_id': self.currency_id.id,
-            # 'ref': ref,
-        }
-        return {
-            'ref': name,
-            'journal_id': journal.id,
-            'date': fields.Date.today(),
-            'line_ids': [
-                (0, False, debit_line_vals),
-                (0, False, credit_line_vals)],
         }

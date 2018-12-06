@@ -3,7 +3,9 @@
 
 from odoo import models, fields, api, _
 from odoo.exceptions import ValidationError
-from ast import literal_eval
+
+import logging
+_logger = logging.getLogger(__name__)
 
 
 class AccountPayment(models.Model):
@@ -29,12 +31,33 @@ class AccountPayment(models.Model):
     )
     signed_amount = fields.Monetary(
         string='Payment Amount',
-        compute='compute_signed_amount',
+        compute='_compute_signed_amount',
+    )
+    signed_amount_company_currency = fields.Monetary(
+        string='Payment Amount on Company Currency',
+        compute='_compute_signed_amount',
+        currency_field='company_currency_id',
     )
     amount_company_currency = fields.Monetary(
         string='Payment Amount on Company Currency',
         compute='_compute_amount_company_currency',
+        inverse='_inverse_amount_company_currency',
         currency_field='company_currency_id',
+    )
+    other_currency = fields.Boolean(
+        compute='_compute_other_currency',
+    )
+    force_amount_company_currency = fields.Monetary(
+        string='Payment Amount on Company Currency',
+        currency_field='company_currency_id',
+        copy=False,
+    )
+    exchange_rate = fields.Float(
+        string='Exchange Rate',
+        compute='_compute_exchange_rate',
+        # readonly=False,
+        # inverse='_inverse_exchange_rate',
+        digits=(16, 4),
     )
     company_currency_id = fields.Many2one(
         related='company_id.currency_id',
@@ -42,8 +65,9 @@ class AccountPayment(models.Model):
     )
 
     @api.multi
-    @api.depends('amount', 'payment_type', 'partner_type')
-    def compute_signed_amount(self):
+    @api.depends(
+        'amount', 'payment_type', 'partner_type', 'amount_company_currency')
+    def _compute_signed_amount(self):
         for rec in self:
             sign = 1.0
             if (
@@ -53,26 +77,63 @@ class AccountPayment(models.Model):
                         rec.payment_type == 'outbound')):
                 sign = -1.0
             rec.signed_amount = rec.amount and rec.amount * sign
+            rec.signed_amount_company_currency = (
+                rec.amount_company_currency and
+                rec.amount_company_currency * sign)
 
-    @api.one
-    @api.depends('amount', 'currency_id', 'company_id.currency_id')
+    @api.multi
+    @api.depends('currency_id', 'company_currency_id')
+    def _compute_other_currency(self):
+        for rec in self:
+            if rec.company_currency_id and rec.currency_id and \
+                    rec.company_currency_id != rec.currency_id:
+                rec.other_currency = True
+
+    @api.multi
+    @api.depends(
+        'amount', 'other_currency', 'amount_company_currency')
+    def _compute_exchange_rate(self):
+        for rec in self.filtered('other_currency'):
+            rec.exchange_rate = rec.amount and (
+                rec.amount_company_currency / rec.amount) or 0.0
+
+    @api.multi
+    # this onchange is necesary because odoo, sometimes, re-compute
+    # and overwrites amount_company_currency. That happends due to an issue
+    # with rounding of amount field (amount field is not change but due to
+    # rouding odoo believes amount has changed)
+    @api.onchange('amount_company_currency')
+    def _inverse_amount_company_currency(self):
+        _logger.info('Running inverse amount company currency')
+        for rec in self:
+            if rec.other_currency and rec.amount_company_currency != \
+                    rec.currency_id.with_context(
+                        date=rec.payment_date).compute(
+                        rec.amount, rec.company_id.currency_id):
+                force_amount_company_currency = rec.amount_company_currency
+            else:
+                force_amount_company_currency = False
+            rec.force_amount_company_currency = force_amount_company_currency
+
+    @api.multi
+    @api.depends('amount', 'other_currency', 'force_amount_company_currency')
     def _compute_amount_company_currency(self):
-        payment_currency = self.currency_id
-        company_currency = self.company_id.currency_id
-        if payment_currency and payment_currency != company_currency:
-            amount_company_currency = self.currency_id.with_context(
-                date=self.payment_date).compute(
-                    self.amount, self.company_id.currency_id)
-        else:
-            amount_company_currency = self.amount
-        sign = 1.0
-        if (
-                (self.partner_type == 'supplier' and
-                    self.payment_type == 'inbound') or
-                (self.partner_type == 'customer' and
-                    self.payment_type == 'outbound')):
-            sign = -1.0
-        self.amount_company_currency = amount_company_currency * sign
+        """
+        * Si las monedas son iguales devuelve 1
+        * si no, si hay force_amount_company_currency, devuelve ese valor
+        * sino, devuelve el amount convertido a la moneda de la cia
+        """
+        _logger.info('Computing amount company currency')
+        for rec in self:
+            if not rec.other_currency:
+                amount_company_currency = rec.amount
+            elif rec.force_amount_company_currency:
+                amount_company_currency = rec.force_amount_company_currency
+            else:
+                amount_company_currency = rec.currency_id.with_context(
+                    date=rec.payment_date).compute(
+                        rec.amount, rec.company_id.currency_id)
+            rec.amount_company_currency = amount_company_currency
 
     @api.multi
     @api.onchange('payment_type_copy')
@@ -93,7 +154,6 @@ class AccountPayment(models.Model):
     @api.multi
     def get_journals_domain(self):
         domain = super(AccountPayment, self).get_journals_domain()
-        # if self._context.get('payment_group'):
         if self.payment_group_company_id:
             domain.append(
                 ('company_id', '=', self.payment_group_company_id.id))
@@ -103,48 +163,147 @@ class AccountPayment(models.Model):
     def _onchange_payment_type(self):
         """
         we disable change of partner_type if we came from a payment_group
+        but we still reset the journal
         """
         if not self._context.get('payment_group'):
             return super(AccountPayment, self)._onchange_payment_type()
+        self.journal_id = False
 
     @api.multi
     @api.constrains('payment_group_id', 'payment_type')
     def check_payment_group(self):
-        # TODO check this
-        # we add this key mainly for odoo test that are gives error because no
-        # payment group for those test cases, we should fix it in another way
-        # but perhups we use this parameter to allow this payments in some
-        # cases
-        if literal_eval(self.env['ir.config_parameter'].sudo().get_param(
-                'enable_payments_without_payment_group', 'False')):
+        # odoo tests don't create payments with payment gorups
+        if self.env.registry.in_test_mode():
             return True
         for rec in self:
-            if rec.payment_type == 'transfer':
-                if rec.payment_group_id:
-                    raise ValidationError(_(
-                        'Payments must be created from payments groups'))
-            else:
-                if not rec.payment_group_id:
-                    raise ValidationError(_(
-                        'Payments must be created from payments groups'))
+            if rec.partner_type and rec.partner_id and \
+               not rec.payment_group_id:
+                raise ValidationError(_(
+                    'Payments with partners must be created from '
+                    'payments groups'))
+            # transfers or payments from bank reconciliation without partners
+            elif not rec.partner_type and rec.payment_group_id:
+                raise ValidationError(_(
+                    "Payments without partners (usually transfers) cant't "
+                    "have a related payment group"))
 
-    @api.one
+    @api.model
+    def get_amls(self):
+        """ Review parameters of process_reconciliation() method and transform
+        them to amls recordset. this one is return to recompute the payment
+        values
+         context keys(
+            'counterpart_aml_dicts', 'new_aml_dicts', 'payment_aml_rec')
+         :return: account move line recorset
+        """
+        counterpart_aml_data = self._context.get('counterpart_aml_dicts', [])
+        new_aml_data = self._context.get('new_aml_dicts', [])
+        amls = self.env['account.move.line']
+        if counterpart_aml_data:
+            for item in counterpart_aml_data:
+                amls |= item.get(
+                    'move_line', self.env['account.move.line'])
+        if new_aml_data:
+            for aml_values in new_aml_data:
+                amls |= amls.new(aml_values)
+        return amls
+
+    @api.model
+    def infer_partner_info(self, vals):
+        """ Odoo way to to interpret the partner_id, partner_type is not
+        usefull for us because in some time they leave this ones empty and
+        we need them in order to create the payment group.
+
+        In this method will try to improve infer when it has a debt related
+        taking into account the account type of the line to concile, and
+        computing the partner if this ones is not setted when concile
+        operation.
+
+        return dictionary with keys (partner_id, partner_type)
+        """
+        res = {}
+        # Get related amls
+        amls = self.get_amls()
+        if not amls:
+            return res
+
+        # odoo manda partner type segun si el pago es positivo o no, nosotros
+        # mejoramos infiriendo a partir de que tipo de deuda se esta pagando
+        partner_type = False
+        internal_type = amls.mapped('account_id.internal_type')
+        if len(internal_type) == 1:
+            if internal_type == ['payable']:
+                partner_type = 'supplier'
+            elif internal_type == ['receivable']:
+                partner_type = 'customer'
+            if partner_type:
+                res.update({'partner_type': partner_type})
+
+        # por mas que el usuario no haya selecccionado partner, si esta pagando
+        # deuda usamos el partner de esa deuda
+        partner_id = vals.get('partner_id', False)
+        if not partner_id and len(amls.mapped('partner_id')) == 1:
+            partner_id = amls.mapped('partner_id').id
+            res.update({'partner_id': partner_id})
+
+        return res
+
+    @api.model
+    def create(self, vals):
+        """
+        When payments are created from bank reconciliation create the
+        Payment group before creating payment to avoid raising error
+        """
+        # Si viene counterpart_aml entonces estamos viniendo de una
+        # conciliacion desde el wizard
+        create_from_statement = self._context.get(
+            'create_from_statement', False)
+        create_from_expense = self._context.get('create_from_expense', False)
+        new_aml_dicts = self._context.get('new_aml_dicts', [])
+        counterpart_aml_data = self._context.get('counterpart_aml_dicts', [])
+        if counterpart_aml_data or new_aml_dicts:
+            vals.update(self.infer_partner_info(vals))
+
+        create_from_website = self._context.get('create_from_website', False)
+        # NOTE: This is required at least from POS when we do not have
+        # partner_id and we do not want a payment group in tha case.
+        create_payment_group = (
+            create_from_statement and vals.get('partner_type')
+            and vals.get('partner_id')) or create_from_website or \
+            create_from_expense
+        if create_payment_group:
+            company_id = self.env['account.journal'].browse(
+                vals.get('journal_id')).company_id.id
+            payment_group = self.env['account.payment.group'].create({
+                'company_id': company_id,
+                'partner_type': vals.get('partner_type'),
+                'partner_id': vals.get('partner_id'),
+                'payment_date': vals.get('payment_date'),
+                'communication': vals.get('communication'),
+            })
+            vals['payment_group_id'] = payment_group.id
+        payment = super(AccountPayment, self).create(vals)
+        if create_payment_group:
+            payment.payment_group_id.post()
+        return payment
+
+    @api.multi
     @api.depends('invoice_ids', 'payment_type', 'partner_type', 'partner_id')
     def _compute_destination_account_id(self):
         """
         If we are paying a payment gorup with paylines, we use account
         of lines that are going to be paid
         """
-        to_pay_account = self.payment_group_id.to_pay_move_line_ids.mapped(
-            'account_id')
-        if len(to_pay_account) > 1:
-            raise ValidationError(_(
-                'To Pay Lines must be of the same account!'))
-        elif len(to_pay_account) == 1:
-            self.destination_account_id = to_pay_account[0]
-        else:
-            return super(
-                AccountPayment, self)._compute_destination_account_id()
+        for rec in self:
+            to_pay_account = rec.payment_group_id.to_pay_move_line_ids.mapped(
+                'account_id')
+            if len(to_pay_account) > 1:
+                raise ValidationError(_(
+                    'To Pay Lines must be of the same account!'))
+            elif len(to_pay_account) == 1:
+                rec.destination_account_id = to_pay_account[0]
+            else:
+                super(AccountPayment, rec)._compute_destination_account_id()
 
     @api.multi
     def show_details(self):
@@ -163,3 +322,29 @@ class AccountPayment(models.Model):
             'res_id': self.id,
             'context': self._context,
         }
+
+    def _get_shared_move_line_vals(
+            self, debit, credit, amount_currency, move_id, invoice_id=False):
+        """
+        Si se esta forzando importe en moneda de cia, usamos este importe
+        para debito/credito
+        """
+        res = super(AccountPayment, self)._get_shared_move_line_vals(
+            debit, credit, amount_currency, move_id, invoice_id=invoice_id)
+        if self.force_amount_company_currency:
+            if res.get('debit', False):
+                res['debit'] = self.force_amount_company_currency
+            if res.get('credit', False):
+                res['credit'] = self.force_amount_company_currency
+        return res
+
+    def _get_move_vals(self, journal=None):
+        """If we have a communication on payment group append it before
+        payment communication
+        """
+        vals = super(AccountPayment, self)._get_move_vals(journal=journal)
+        if self.payment_group_id.communication:
+            vals['ref'] = "%s%s" % (
+                self.payment_group_id.communication,
+                self.communication and ": %s" % self.communication or "")
+        return vals
