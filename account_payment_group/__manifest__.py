@@ -29,7 +29,7 @@
         'views/account_payment_group_view.xml',
         'views/account_invoice_view.xml',
         'views/account_journal_dashboard_view.xml',
-        'views/resources.xml',
+        # 'views/resources.xml',
     ],
     "demo": [
     ],
