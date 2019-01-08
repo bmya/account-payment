@@ -3,8 +3,7 @@
 # directory
 ##############################################################################
 from odoo import fields, models, _, api
-from odoo.exceptions import UserError
-from odoo.tools import float_compare
+from odoo.exceptions import UserError, ValidationError
 import logging
 # import odoo.addons.decimal_precision as dp
 _logger = logging.getLogger(__name__)
@@ -43,6 +42,14 @@ class AccountPayment(models.Model):
         'account.check',
         compute='_compute_check',
         string='Check',
+    )
+    check_deposit_type = fields.Selection(
+        [('consolidated', 'Consolidated'),
+         ('detailed', 'Detailed')],
+        default='detailed',
+        help="This option is relevant if you use bank statements. Detailed is"
+        " used when the bank credits one by one the checks, consolidated is"
+        " for when the bank credits all the checks in a single movement",
     )
 
     @api.multi
@@ -161,12 +168,43 @@ class AccountPayment(models.Model):
 
 # on change methods
 
-    # @api.constrains('check_ids')
+    @api.constrains('check_ids')
     @api.onchange('check_ids', 'payment_method_code')
     def onchange_checks(self):
-        # we only overwrite if payment method is delivered
-        if self.payment_method_code == 'delivered_third_check':
-            self.amount = sum(self.check_ids.mapped('amount'))
+        for rec in self:
+            # we only overwrite if payment method is delivered
+            if rec.payment_method_code == 'delivered_third_check':
+                rec.amount = sum(rec.check_ids.mapped('amount'))
+                currency = rec.check_ids.mapped('currency_id')
+
+                if len(currency) > 1:
+                    raise ValidationError(_(
+                        'You are trying to deposit checks of difference'
+                        ' currencies, this functionality is not supported'))
+                elif len(currency) == 1:
+                    rec.currency_id = currency.id
+
+                # si es una entrega de cheques de terceros y es en otra moneda
+                # a la de la cia, forzamos el importe en moneda de cia de los
+                # cheques originales
+                # escribimos force_amount_company_currency directamente en vez
+                # de amount_company_currency por lo explicado en
+                # _inverse_amount_company_currency
+                if rec.currency_id != rec.company_currency_id:
+                    rec.force_amount_company_currency = sum(
+                        rec.check_ids.mapped('amount_company_currency'))
+
+    @api.onchange('amount_company_currency')
+    def _inverse_amount_company_currency(self):
+        # el metodo _inverse_amount_company_currency tiene un parche feo de
+        # un onchange sobre si mismo que termina haciendo que se vuelva a
+        # ejecutar y entonces no siempre guarde el importe en otra moneda
+        # habria que eliminar ese onchange, por el momento anulando
+        # eso para los cheques de terceros y escribiendo directamente
+        # force_amount_company_currency, lo solucionamos
+        self = self.filtered(
+            lambda x: x.payment_method_code != 'delivered_third_check')
+        return super(AccountPayment, self)._inverse_amount_company_currency()
 
     @api.multi
     @api.onchange('check_number')
@@ -292,10 +330,10 @@ class AccountPayment(models.Model):
             'journal_id': self.journal_id.id,
             'amount': self.amount,
             'payment_date': self.check_payment_date,
-            # TODO arreglar que monto va de amount y cual de amount currency
-            # 'amount_currency': self.amount,
             'currency_id': self.currency_id.id,
+            'amount_company_currency': self.amount_company_currency,
         }
+
         check = self.env['account.check'].create(check_vals)
         self.check_ids = [(4, check.id, False)]
         check._add_operation(
@@ -493,7 +531,8 @@ class AccountPayment(models.Model):
                     'Para mandar a proceso de firma debe definir número '
                     'de cheque en cada línea de pago.\n'
                     '* ID del pago: %s') % rec.id)
-        return super(AccountPayment, self).post()
+        res = super(AccountPayment, self).post()
+        return res
 
     def _get_liquidity_move_line_vals(self, amount):
         vals = super(AccountPayment, self)._get_liquidity_move_line_vals(
@@ -562,3 +601,67 @@ class AccountPayment(models.Model):
         if force_account_id:
             vals['account_id'] = force_account_id
         return vals
+
+    @api.multi
+    def _split_aml_line_per_check(self, move):
+        """ Take an account mvoe, find the move lines related to check and
+        split them one per earch check related to the payment
+        """
+        self.ensure_one()
+        res = self.env['account.move.line']
+        move.button_cancel()
+        checks = self.check_ids
+        aml = move.line_ids.with_context(check_move_validity=False).filtered(
+            lambda x: x.name != self.name)
+        if len(aml) > 1:
+            raise UserError(
+                _('Seems like this move has been already splited'))
+        elif len(aml) == 0:
+            raise UserError(
+                _('There is not move lines to split'))
+
+        amount_field = 'credit' if aml.credit else 'debit'
+        new_name = _('Deposit check %s') if aml.credit else \
+            aml.name + _(' check %s')
+
+        # if the move line has currency then we are delivering checks on a
+        # different currency than company one
+        currency = aml.currency_id
+        currency_sign = amount_field == 'debit' and 1.0 or -1.0
+        aml.write({
+            'name': new_name % checks[0].name,
+            amount_field: checks[0].amount_company_currency,
+            'amount_currency': currency and currency_sign * checks[0].amount,
+        })
+        res |= aml
+        checks -= checks[0]
+        for check in checks:
+            res |= aml.copy({
+                'name': new_name % check.name,
+                amount_field: check.amount_company_currency,
+                'payment_id': self.id,
+                'amount_currency': currency and currency_sign * check.amount,
+            })
+        move.post()
+        return res
+
+    @api.multi
+    def _create_payment_entry(self, amount):
+        move = super(AccountPayment, self)._create_payment_entry(amount)
+        if self.filtered(
+            lambda x: x.payment_type == 'transfer' and
+                x.payment_method_code == 'delivered_third_check' and
+                x.check_deposit_type == 'detailed'):
+            self._split_aml_line_per_check(move)
+        return move
+
+    @api.multi
+    def _create_transfer_entry(self, amount):
+        transfer_debit_aml = super(
+            AccountPayment, self)._create_transfer_entry(amount)
+        if self.filtered(
+            lambda x: x.payment_type == 'transfer' and
+                x.payment_method_code == 'delivered_third_check' and
+                x.check_deposit_type == 'detailed'):
+            self._split_aml_line_per_check(transfer_debit_aml.move_id)
+        return transfer_debit_aml

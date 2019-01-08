@@ -417,6 +417,7 @@ class AccountPaymentGroup(models.Model):
             rec.to_pay_amount = rec.selected_debt + rec.unreconciled_amount
 
     @api.multi
+    @api.onchange('to_pay_amount')
     def _inverse_to_pay_amount(self):
         for rec in self:
             rec.unreconciled_amount = rec.to_pay_amount - rec.selected_debt
@@ -429,10 +430,7 @@ class AccountPaymentGroup(models.Model):
         if self._context.get('pop_up'):
             return
         for rec in self:
-            # not sure why but state field is false on payments so they can
-            # not be unliked, this fix that
-            rec.invalidate_cache(['payment_ids'])
-            rec.payment_ids.unlink()
+            rec.payment_ids = [(2, item.id, 0) for item in rec.payment_ids]
             rec.add_all()
 
     @api.multi
@@ -537,6 +535,7 @@ class AccountPaymentGroup(models.Model):
                 # if rec.to_pay_move_line_ids:
                 #     move.line_ids.remove_move_reconcile()
             rec.payment_ids.cancel()
+            rec.payment_ids.write({'invoice_ids': [(5, 0, 0)]})
         self.write({'state': 'cancel'})
 
     @api.multi
