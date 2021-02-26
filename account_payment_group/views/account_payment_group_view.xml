@@ -166,7 +166,7 @@
                         <!-- <field name="payment_ids" context="{'default_payment_type': partner_type == 'supplier' and 'outbound' or 'inbound', 'default_payment_date': payment_date, 'default_partner_id': partner_id, 'default_partner_type': partner_type, 'payment_group': True, 'default_amount': payment_difference, 'tree_view_ref': 'account_payment_group.view_account_payment_tree'}" attrs="{'readonly': ['|', ('state', 'not in', ['draft', 'confirmed']), ('payment_subtype', '=', 'double_validation'), ('state', '=', 'draft')]}"/> -->
                         <!-- <field name="payment_ids" context="{'default_payment_type': payment_type, 'default_payment_date': payment_date, 'default_partner_id': partner_id, 'default_partner_type': partner_type, 'payment_group': True, 'default_amount': payment_difference, 'tree_view_ref': 'account_payment_group.view_account_payment_tree'}"/> -->
                     </page>
-                    <page string="Debts" attrs="{'invisible': ['|', '|', ('pop_up', '=', True), ('payment_subtype', '!=', 'simple'), ('state', '!=', 'draft')]}">
+                    <field string="Debts" attrs="{'invisible': ['|', '|', ('pop_up', '=', True), ('payment_subtype', '!=', 'simple'), ('state', '!=', 'draft')]}">
                         <p>
                             Payment will be automatically matched with the oldest lines of this list (by date, no by maturity date). You can remove any line you dont want to be matched.
                         </p>
@@ -174,7 +174,19 @@
                         <button name="remove_all" string="Remove All" states="draft" type="object"/>
                         <button name="%(action_account_payment_group_invoice_wizard)d" string="+ Debit Note" states="draft" type="action" context="{'internal_type': 'debit_note'}"/>
                         <button name="%(action_account_payment_group_invoice_wizard)d" string="+ Credit Note" states="draft" context="{'refund': True}" type="action"/>
-                        <field name="debt_move_line_ids" context="{'tree_view_ref': 'account_payment_group.view_move_line_tree'}" domain="[('partner_id.commercial_partner_id', '=', commercial_partner_id),('account_id.internal_type', '=', account_internal_type),('account_id.reconcile', '=', True),('reconciled', '=', False),('company_id', '=', company_id)]"/>
+                        <field name="debt_move_line_ids" context="{'tree_view_ref': 'account_payment_group.view_move_line_tree'}" domain="[('partner_id.commercial_partner_id', '=', commercial_partner_id),('account_id.internal_type', '=', account_internal_type),('account_id.reconcile', '=', True),('reconciled', '=', False),('company_id', '=', company_id)]">
+                            <field name="date"/>
+                            <field name="date_maturity"/>
+                            <field name="move_id"/>
+                            <field name="journal_id"/>
+                            <field name="name"/>
+                            <field name="ref"/>
+                            <field name="balance"/>
+                            <field name="amount_residual"/>
+                            <field name="amount_currency"/>
+                            <field name="amount_to_pay"/>
+                            <!--<field name="amount_residual_currency"/>-->
+                        </field>
                     </page>
                     <page string="Paid" states="posted">
                         <field name="matched_move_line_ids" context="{'payment_group_id': id, 'matched_lines': True, 'tree_view_ref': 'account_payment_group.view_move_line_tree'}"/>

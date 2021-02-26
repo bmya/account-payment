@@ -19,6 +19,7 @@ class AccountMoveLine(models.Model):
         readonly=True,
         auto_join=True,
     )
+    amount_to_pay = fields.Monetary(string="Deuda Seleccionada")
 
     @api.multi
     def _compute_payment_group_matched_amount(self):

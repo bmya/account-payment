@@ -399,11 +399,13 @@ class AccountPaymentGroup(models.Model):
             selected_debt_untaxed = 0.0
             for line in rec.to_pay_move_line_ids:
                 selected_finacial_debt += line.financial_amount_residual
-                selected_debt += line.amount_residual
+                # selected_debt += line.amount_residual
+                selected_debt += line.amount_to_pay
                 # factor for total_untaxed
                 invoice = line.invoice_id
                 factor = invoice and invoice._get_tax_factor() or 1.0
-                selected_debt_untaxed += line.amount_residual * factor
+                # selected_debt_untaxed += line.amount_residual * factor
+                selected_debt_untaxed += line.amount_to_pay * factor
             sign = rec.partner_type == 'supplier' and -1.0 or 1.0
             rec.selected_finacial_debt = selected_finacial_debt * sign
             rec.selected_debt = selected_debt * sign
