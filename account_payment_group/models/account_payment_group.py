@@ -615,4 +615,4 @@ class AccountPaymentGroup(models.Model):
     def _constrains_zero_diff(self):
         for record in self:
             if record.state in ['confirmed', 'posted'] and record.payment_difference != 0:
-                raise UserError('El monto a pagar no coincide con el pago seleccionado')
+                raise ValidationError('El monto a pagar no coincide con el pago seleccionado')
