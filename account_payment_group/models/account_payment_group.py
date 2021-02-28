@@ -437,6 +437,8 @@ class AccountPaymentGroup(models.Model):
         for rec in self:
             rec.payment_ids = [(2, item.id, 0) for item in rec.payment_ids]
             rec.add_all()
+            for line in rec.debt_move_line_ids.filtered(lambda x: x.amount_to_pay):
+                line.amount_to_pay = 0
 
     @api.multi
     def onchange(self, values, field_name, field_onchange):
@@ -471,8 +473,6 @@ class AccountPaymentGroup(models.Model):
     def add_all(self):
         for rec in self:
             rec.to_pay_move_line_ids = rec.env['account.move.line'].search(rec._get_to_pay_move_lines_domain())
-            for line in rec.to_pay_move_line_ids:
-                line.amount_to_pay = 0
 
     @api.multi
     def remove_all(self):
@@ -549,8 +549,7 @@ class AccountPaymentGroup(models.Model):
     @api.multi
     def unlink(self):
         if any(rec.state != 'draft' for rec in self):
-            raise ValidationError(_(
-                "You can not delete a payment that is already posted"))
+            raise ValidationError(_("You can not delete a payment that is already posted"))
         return super(AccountPaymentGroup, self).unlink()
 
     @api.multi
@@ -558,8 +557,7 @@ class AccountPaymentGroup(models.Model):
         for rec in self:
             accounts = rec.to_pay_move_line_ids.mapped('account_id')
             if len(accounts) > 1:
-                raise ValidationError(_(
-                    'To Pay Lines must be of the same account!'))
+                raise ValidationError(_('To Pay Lines must be of the same account!'))
         self.write({'state': 'confirmed'})
 
     @api.multi
@@ -568,27 +566,21 @@ class AccountPaymentGroup(models.Model):
         # break behaviour, for eg. with demo user error writing account.account
         # and with other users, error with block date of accounting
         # TODO we should look for a better way to solve this
-
-        create_from_website = self._context.get(
-            'create_from_website', False)
-        create_from_statement = self._context.get(
-            'create_from_statement', False)
+        create_from_website = self._context.get('create_from_website', False)
+        create_from_statement = self._context.get('create_from_statement', False)
         create_from_expense = self._context.get('create_from_expense', False)
         self = self.with_context({})
         for rec in self:
             # TODO if we want to allow writeoff then we can disable this
             # constrain and send writeoff_journal_id and writeoff_acc_id
             if not rec.payment_ids:
-                raise ValidationError(_(
-                    'You can not confirm a payment group without payment '
-                    'lines!'))
+                raise ValidationError(_('You can not confirm a payment group without payment lines!'))
             # si el pago se esta posteando desde statements y hay doble
             # validacion no verificamos que haya deuda seleccionada
             if (rec.payment_subtype == 'double_validation' and
                     rec.payment_difference and (not create_from_statement and
                                                 not create_from_expense)):
-                raise ValidationError(_(
-                    'To Pay Amount and Payment Amount must be equal!'))
+                raise ValidationError(_('To Pay Amount and Payment Amount must be equal!'))
 
             writeoff_acc_id = False
             writeoff_journal_id = False
@@ -599,14 +591,12 @@ class AccountPaymentGroup(models.Model):
                 rec.payment_ids.filtered(lambda x: x.state == 'draft').post()
 
             counterpart_aml = rec.payment_ids.mapped('move_line_ids').filtered(
-                lambda r: not r.reconciled and r.account_id.internal_type in (
-                    'payable', 'receivable'))
+                lambda r: not r.reconciled and r.account_id.internal_type in ('payable', 'receivable'))
 
             # porque la cuenta podria ser no recivible y ni conciliable
             # (por ejemplo en sipreco)
             if counterpart_aml and rec.to_pay_move_line_ids:
-                (counterpart_aml + (rec.to_pay_move_line_ids)).reconcile(
-                    writeoff_acc_id, writeoff_journal_id)
+                (counterpart_aml + (rec.to_pay_move_line_ids)).reconcile(writeoff_acc_id, writeoff_journal_id)
 
             rec.state = 'posted'
 
