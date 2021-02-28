@@ -610,3 +610,9 @@ class AccountPaymentGroup(models.Model):
                     writeoff_acc_id, writeoff_journal_id)
 
             rec.state = 'posted'
+
+    @api.constrains('state', 'payment_difference')
+    def _constrains_zero_diff(self):
+        for record in self:
+            if record.state in ['confirmed', 'posted'] and record.payment_difference != 0:
+                raise UserError('El monto a pagar no coincide con el pago seleccionado')
