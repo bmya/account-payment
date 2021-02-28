@@ -166,7 +166,7 @@
                         <!-- <field name="payment_ids" context="{'default_payment_type': partner_type == 'supplier' and 'outbound' or 'inbound', 'default_payment_date': payment_date, 'default_partner_id': partner_id, 'default_partner_type': partner_type, 'payment_group': True, 'default_amount': payment_difference, 'tree_view_ref': 'account_payment_group.view_account_payment_tree'}" attrs="{'readonly': ['|', ('state', 'not in', ['draft', 'confirmed']), ('payment_subtype', '=', 'double_validation'), ('state', '=', 'draft')]}"/> -->
                         <!-- <field name="payment_ids" context="{'default_payment_type': payment_type, 'default_payment_date': payment_date, 'default_partner_id': partner_id, 'default_partner_type': partner_type, 'payment_group': True, 'default_amount': payment_difference, 'tree_view_ref': 'account_payment_group.view_account_payment_tree'}"/> -->
                     </page>
-                    <field string="Debts" attrs="{'invisible': ['|', '|', ('pop_up', '=', True), ('payment_subtype', '!=', 'simple'), ('state', '!=', 'draft')]}">
+                    <page string="Debts" attrs="{'invisible': ['|', '|', ('pop_up', '=', True), ('payment_subtype', '!=', 'simple'), ('state', '!=', 'draft')]}">
                         <p>
                             Payment will be automatically matched with the oldest lines of this list (by date, no by maturity date). You can remove any line you dont want to be matched.
                         </p>
