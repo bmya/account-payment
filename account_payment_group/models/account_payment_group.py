@@ -115,7 +115,7 @@ class AccountPaymentGroup(models.Model):
         inverse='_inverse_to_pay_amount',
         string='To Pay Amount',
         # string='Total To Pay Amount',
-        readonly=True,
+        readonly=False,
         states={'draft': [('readonly', False)]},
         track_visibility='always',
     )
@@ -391,22 +391,24 @@ class AccountPaymentGroup(models.Model):
         'to_pay_move_line_ids.invoice_id',
         'payment_date',
         'currency_id',
+        'debt_move_line_ids.amount_to_pay',
+        'to_pay_move_line_ids.amount_to_pay',
     )
     def _compute_selected_debt(self):
         for rec in self:
             selected_finacial_debt = 0.0
             selected_debt = 0.0
             selected_debt_untaxed = 0.0
+            sign = rec.partner_type == 'supplier' and -1.0 or 1.0
             for line in rec.to_pay_move_line_ids:
                 selected_finacial_debt += line.financial_amount_residual
                 # selected_debt += line.amount_residual
-                selected_debt += line.amount_to_pay
+                selected_debt += line.amount_to_pay * sign
                 # factor for total_untaxed
                 invoice = line.invoice_id
                 factor = invoice and invoice._get_tax_factor() or 1.0
                 # selected_debt_untaxed += line.amount_residual * factor
-                selected_debt_untaxed += line.amount_to_pay * factor
-            sign = rec.partner_type == 'supplier' and -1.0 or 1.0
+                selected_debt_untaxed += line.amount_to_pay * sign * factor
             rec.selected_finacial_debt = selected_finacial_debt * sign
             rec.selected_debt = selected_debt * sign
             rec.selected_debt_untaxed = selected_debt_untaxed * sign
