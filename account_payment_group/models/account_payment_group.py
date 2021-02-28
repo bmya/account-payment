@@ -470,8 +470,9 @@ class AccountPaymentGroup(models.Model):
     @api.multi
     def add_all(self):
         for rec in self:
-            rec.to_pay_move_line_ids = rec.env['account.move.line'].search(
-                rec._get_to_pay_move_lines_domain())
+            rec.to_pay_move_line_ids = rec.env['account.move.line'].search(rec._get_to_pay_move_lines_domain())
+            for line in rec.to_pay_move_line_ids:
+                line.amount_to_pay = 0
 
     @api.multi
     def remove_all(self):
