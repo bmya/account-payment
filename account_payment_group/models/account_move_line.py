@@ -11,27 +11,22 @@ class AccountMoveLine(models.Model):
     # inverse field of the one created on payment groups, used by other modules
     # like sipreco
     payment_group_ids = fields.Many2many(
-        'account.payment.group',
-        'account_move_line_payment_group_to_pay_rel',
-        'to_pay_line_id',
-        'payment_group_id',
-        string="Payment Groups",
-        readonly=True,
-        auto_join=True,
-    )
-    amount_to_pay = fields.Monetary(string="Deuda Seleccionada")
+        'account.payment.group', 'account_move_line_payment_group_to_pay_rel', 'to_pay_line_id', 'payment_group_id',
+        string="Payment Groups", readonly=True, auto_join=True)
+    payment_group_matched_amount = fields.Monetary(compute='_compute_payment_group_matched_amount',
+                                                   currency_field='company_currency_id')
+    amount_to_pay = fields.Monetary(string="Deuda Seleccionada", currency_field='company_currency_id')
 
     @api.multi
     def _compute_payment_group_matched_amount(self):
         """
-        Reciviendo un payment_group_id por contexto, decimos en ese payment
+        Recibiendo un payment_group_id por contexto, decimos en ese payment
         group, cuanto se pago para la lína en cuestión.
         """
         payment_group_id = self._context.get('payment_group_id')
         if not payment_group_id:
             return False
-        payments = self.env['account.payment.group'].browse(
-            payment_group_id).payment_ids
+        payments = self.env['account.payment.group'].browse(payment_group_id).payment_ids
         payment_move_lines = payments.mapped('move_line_ids')
 
         for rec in self:
@@ -46,8 +41,3 @@ class AccountMoveLine(models.Model):
                 ('credit_move_id', '=', rec.id)])
             matched_amount -= sum(reconciles.mapped('amount'))
             rec.payment_group_matched_amount = matched_amount
-
-    payment_group_matched_amount = fields.Monetary(
-        compute='_compute_payment_group_matched_amount',
-        currency_field='company_currency_id',
-    )

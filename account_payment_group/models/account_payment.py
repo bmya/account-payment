@@ -65,16 +65,12 @@ class AccountPayment(models.Model):
     )
 
     @api.multi
-    @api.depends(
-        'amount', 'payment_type', 'partner_type', 'amount_company_currency')
+    @api.depends('amount', 'payment_type', 'partner_type', 'amount_company_currency')
     def _compute_signed_amount(self):
         for rec in self:
             sign = 1.0
-            if (
-                    (rec.partner_type == 'supplier' and
-                        rec.payment_type == 'inbound') or
-                    (rec.partner_type == 'customer' and
-                        rec.payment_type == 'outbound')):
+            if ((rec.partner_type == 'supplier' and rec.payment_type == 'inbound') or (
+                    rec.partner_type == 'customer' and rec.payment_type == 'outbound')):
                 sign = -1.0
             rec.signed_amount = rec.amount and rec.amount * sign
             rec.signed_amount_company_currency = (
@@ -90,8 +86,7 @@ class AccountPayment(models.Model):
                 rec.other_currency = True
 
     @api.multi
-    @api.depends(
-        'amount', 'other_currency', 'amount_company_currency')
+    @api.depends('amount', 'other_currency', 'amount_company_currency')
     def _compute_exchange_rate(self):
         for rec in self.filtered('other_currency'):
             rec.exchange_rate = rec.amount and (
@@ -178,9 +173,7 @@ class AccountPayment(models.Model):
         for rec in self:
             if rec.partner_type and rec.partner_id and \
                not rec.payment_group_id:
-                raise ValidationError(_(
-                    'Payments with partners must be created from '
-                    'payments groups'))
+                raise ValidationError(_('Payments with partners must be created from payments groups'))
             # transfers or payments from bank reconciliation without partners
             elif not rec.partner_type and rec.payment_group_id:
                 raise ValidationError(_(
@@ -256,8 +249,7 @@ class AccountPayment(models.Model):
         """
         # Si viene counterpart_aml entonces estamos viniendo de una
         # conciliacion desde el wizard
-        create_from_statement = self._context.get(
-            'create_from_statement', False)
+        create_from_statement = self._context.get('create_from_statement', False)
         create_from_expense = self._context.get('create_from_expense', False)
         new_aml_dicts = self._context.get('new_aml_dicts', [])
         counterpart_aml_data = self._context.get('counterpart_aml_dicts', [])
@@ -323,8 +315,7 @@ class AccountPayment(models.Model):
             'context': self._context,
         }
 
-    def _get_shared_move_line_vals(
-            self, debit, credit, amount_currency, move_id, invoice_id=False):
+    def _get_shared_move_line_vals(self, debit, credit, amount_currency, move_id, invoice_id=False):
         """
         Si se esta forzando importe en moneda de cia, usamos este importe
         para debito/credito

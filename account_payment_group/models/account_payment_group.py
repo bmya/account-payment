@@ -330,12 +330,14 @@ class AccountPaymentGroup(models.Model):
         Buscamos primeros todas las que tienen en credit_move_id algun apunte
         de los que se genero con un pago, etnonces la contrapartida
         (debit_move_id), son cosas que se pagaron con este pago. Repetimos
-        al revz (debit_move_id vs credit_move_id)
+        al revés (debit_move_id vs credit_move_id)
         """
         for rec in self:
             lines = rec.move_line_ids.browse()
             # not sure why but self.move_line_ids dont work the same way
-            payment_lines = rec.payment_ids.mapped('move_line_ids')
+            # daniel: remuevo esta linea para buscar otro dominio de pago
+            # payment_lines = rec.payment_ids.mapped('move_line_ids')
+            payment_lines = rec.debt_move_line_ids.filtered(lambda x: x.amount_to_pay)
 
             reconciles = rec.env['account.partial.reconcile'].search([
                 ('credit_move_id', 'in', payment_lines.ids)])
@@ -414,8 +416,7 @@ class AccountPaymentGroup(models.Model):
             rec.selected_debt_untaxed = selected_debt_untaxed * sign
 
     @api.multi
-    @api.depends(
-        'selected_debt', 'unreconciled_amount')
+    @api.depends('selected_debt', 'unreconciled_amount')
     def _compute_to_pay_amount(self):
         for rec in self:
             rec.to_pay_amount = rec.selected_debt + rec.unreconciled_amount
@@ -444,14 +445,11 @@ class AccountPaymentGroup(models.Model):
         """
         fields = []
         for field in field_onchange.keys():
-            if field.startswith((
-                    'to_pay_move_line_ids.',
-                    'debt_move_line_ids.')):
+            if field.startswith(('to_pay_move_line_ids.', 'debt_move_line_ids.')):
                 fields.append(field)
         for field in fields:
             del field_onchange[field]
-        return super(AccountPaymentGroup, self).onchange(
-            values, field_name, field_onchange)
+        return super(AccountPaymentGroup, self).onchange(values, field_name, field_onchange)
 
     @api.multi
     def _get_to_pay_move_lines_domain(self):
