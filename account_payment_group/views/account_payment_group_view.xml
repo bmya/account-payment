@@ -213,169 +213,168 @@
                             <field name="debt_move_line_ids"
                                    context="{'tree_view_ref': 'account_payment_group.view_move_line_tree'}"
                                    domain="[('partner_id.commercial_partner_id', '=', commercial_partner_id),('account_id.internal_type', '=', account_internal_type),('account_id.reconcile', '=', True),('reconciled', '=', False),('company_id', '=', company_id)]">
-                                    <form string="Apunte contable">
-                                        <sheet name="formulario">
-                                            <field name="company_id" invisible="1" can_create="true" can_write="true"
-                                                   modifiers="{&quot;readonly&quot;: true, &quot;invisible&quot;: true}"/>
-                                            <field invisible="True" name="l10n_cl_localization"
-                                                   modifiers="{&quot;invisible&quot;: true}"/>
-                                            <field name="parent_state" invisible="1"
-                                                   modifiers="{&quot;readonly&quot;: true, &quot;invisible&quot;: true}"/>
-                                            <group name="studio_group_44f13f">
-                                                <field name="name" modifiers="{}"/>
-                                                <field name="partner_id"
-                                                       domain="['|', ('parent_id', '=', False), ('is_company', '=', True)]"
-                                                       attrs="{'readonly': [('parent_state', '=', 'posted')]}"
-                                                       can_create="true" can_write="true"
-                                                       modifiers="{&quot;readonly&quot;: [[&quot;parent_state&quot;, &quot;=&quot;, &quot;posted&quot;]]}"/>
-                                            </group>
-                                            <notebook colspan="4" name="informacion">
-                                                <page string="Información" name="page_information">
-                                                    <group name="group1">
-                                                        <group string="Importe" name="group1a">
-                                                            <field name="account_id"
-                                                                   domain="[('company_id', '=', company_id)]"
-                                                                   attrs="{'readonly':[('parent_state','=','posted')]}"
-                                                                   on_change="1" can_create="true" can_write="true"
-                                                                   modifiers="{&quot;readonly&quot;: [[&quot;parent_state&quot;, &quot;=&quot;, &quot;posted&quot;]], &quot;required&quot;: true}"/>
-                                                            <field name="debit"
-                                                                   attrs="{'readonly':[('parent_state','=','posted')]}"
-                                                                   modifiers="{&quot;readonly&quot;: [[&quot;parent_state&quot;, &quot;=&quot;, &quot;posted&quot;]]}"/>
-                                                            <field name="credit"
-                                                                   attrs="{'readonly':[('parent_state','=','posted')]}"
-                                                                   modifiers="{&quot;readonly&quot;: [[&quot;parent_state&quot;, &quot;=&quot;, &quot;posted&quot;]]}"/>
-                                                            <field name="quantity" modifiers="{}"/>
-                                                        </group>
-                                                        <group string="Documentos contables" name="group1b">
-                                                            <field name="move_id"
-                                                                   attrs="{'readonly':[('parent_state','=','posted')]}"
-                                                                   on_change="1" can_create="true" can_write="true"
-                                                                   modifiers="{&quot;readonly&quot;: [[&quot;parent_state&quot;, &quot;=&quot;, &quot;posted&quot;]], &quot;required&quot;: true}"/>
-                                                            <field name="statement_id" readonly="True"
-                                                                   attrs="{'invisible': [('statement_id','=',False)]}"
-                                                                   can_create="true" can_write="true"
-                                                                   modifiers="{&quot;readonly&quot;: true, &quot;invisible&quot;: [[&quot;statement_id&quot;, &quot;=&quot;, false]]}"/>
-                                                            <field name="invoice_id"
-                                                                   attrs="{'invisible': [('invoice_id','=',False)]}"
-                                                                   can_create="true" can_write="true"
-                                                                   modifiers="{&quot;invisible&quot;: [[&quot;invoice_id&quot;, &quot;=&quot;, false]]}"/>
-                                                            <field name="amount_to_pay"/>
-                                                        </group>
-                                                        <group string="Fechas" name="group1c">
-                                                            <field name="date_maturity"
-                                                                   modifiers="{&quot;required&quot;: true}"/>
-                                                        </group>
-                                                        <group string="Impuestos"
-                                                               attrs="{'invisible': [('tax_line_id','=',False), ('tax_ids','=',[])]}"
-                                                               modifiers="{&quot;invisible&quot;: [[&quot;tax_line_id&quot;, &quot;=&quot;, false], [&quot;tax_ids&quot;, &quot;=&quot;, []]]}"
-                                                               name="studio_group_d6264d">
-                                                            <field name="tax_line_id" readonly="1"
-                                                                   attrs="{'invisible': [('tax_line_id','=',False)]}"
-                                                                   can_create="true" can_write="true"
-                                                                   modifiers="{&quot;readonly&quot;: true, &quot;invisible&quot;: [[&quot;tax_line_id&quot;, &quot;=&quot;, false]]}"/>
-                                                            <field name="tax_ids" widget="many2many_tags" readonly="1"
-                                                                   attrs="{'invisible': [('tax_ids','=',[])]}"
-                                                                   can_create="true" can_write="true"
-                                                                   modifiers="{&quot;readonly&quot;: true, &quot;invisible&quot;: [[&quot;tax_ids&quot;, &quot;=&quot;, []]]}"/>
-                                                        </group>
-                                                        <group string="Conciliación"
-                                                               attrs="{'invisible':[('full_reconcile_id','=',False)]}"
-                                                               modifiers="{&quot;invisible&quot;: [[&quot;full_reconcile_id&quot;, &quot;=&quot;, false]]}"
-                                                               name="studio_group_b61c40">
-                                                            <label for="full_reconcile_id"/>
-                                                            <div name="div1">
-                                                                <field name="full_reconcile_id" can_create="true"
-                                                                       can_write="true" modifiers="{}"/>
-                                                                <field name="matched_debit_ids" invisible="1"
-                                                                       modifiers="{&quot;invisible&quot;: true}"/>
-                                                                <field name="matched_credit_ids" invisible="1"
-                                                                       modifiers="{&quot;invisible&quot;: true}"/>
-                                                                <button name="open_reconcile_view" class="oe_link"
-                                                                        type="object"
-                                                                        string="-&gt; Ver entradas parcialmente conciliadas"
-                                                                        attrs="{'invisible': ['|', ('full_reconcile_id', '!=', False), '&amp;', ('matched_debit_ids', '=', []),('matched_credit_ids', '=', [])]}"
-                                                                        modifiers="{&quot;invisible&quot;: [&quot;|&quot;, [&quot;full_reconcile_id&quot;, &quot;!=&quot;, false], &quot;&amp;&quot;, [&quot;matched_debit_ids&quot;, &quot;=&quot;, []], [&quot;matched_credit_ids&quot;, &quot;=&quot;, []]]}">
-                                                                </button>
-                                                            </div>
-                                                        </group>
-                                                        <group string="Moneda"
-                                                               studio_groups="[{&quot;id&quot;: 6, &quot;name&quot;: &quot;Multimoneda&quot;, &quot;display_name&quot;: &quot;Permisos extra / Multimoneda&quot;}]"
-                                                               name="studio_group_c06a59">
-                                                            <field name="currency_id" invisible="1" on_change="1"
-                                                                   can_create="true" can_write="true"
-                                                                   modifiers="{&quot;invisible&quot;: true}"/>
-                                                            <field name="amount_currency" on_change="1" modifiers="{}"/>
-                                                        </group>
-                                                        <group string="Estados" name="studio_group_36f2b5">
-                                                            <field name="blocked" modifiers="{}"/>
-                                                        </group>
-                                                        <group string="Analítico"
-                                                               studio_groups="[{&quot;id&quot;: 14, &quot;name&quot;: &quot;Contabilidad anal\u00edtica&quot;, &quot;display_name&quot;: &quot;Configuraci\u00f3n t\u00e9cnica / Contabilidad anal\u00edtica&quot;}]"
-                                                               name="studio_group_2f6c18">
-                                                            <field name="analytic_account_id" can_create="true"
-                                                                   can_write="true" modifiers="{}"/>
-                                                            <field name="analytic_tag_ids" widget="many2many_tags"
-                                                                   can_create="true" can_write="true" modifiers="{}"/>
-                                                        </group>
+                                <form string="Apunte contable">
+                                    <sheet name="formulario">
+                                        <field name="company_id" invisible="1" can_create="true" can_write="true"
+                                               modifiers="{&quot;readonly&quot;: true, &quot;invisible&quot;: true}"/>
+                                        <field invisible="True" name="l10n_cl_localization"
+                                               modifiers="{&quot;invisible&quot;: true}"/>
+                                        <field name="parent_state" invisible="1"
+                                               modifiers="{&quot;readonly&quot;: true, &quot;invisible&quot;: true}"/>
+                                        <group name="studio_group_44f13f">
+                                            <field name="name" modifiers="{}"/>
+                                            <field name="partner_id"
+                                                   domain="['|', ('parent_id', '=', False), ('is_company', '=', True)]"
+                                                   attrs="{'readonly': [('parent_state', '=', 'posted')]}"
+                                                   can_create="true" can_write="true"
+                                                   modifiers="{&quot;readonly&quot;: [[&quot;parent_state&quot;, &quot;=&quot;, &quot;posted&quot;]]}"/>
+                                        </group>
+                                        <notebook colspan="4" name="informacion">
+                                            <page string="Información" name="page_information">
+                                                <group name="group1">
+                                                    <group string="Importe" name="group1a">
+                                                        <field name="account_id"
+                                                               domain="[('company_id', '=', company_id)]"
+                                                               attrs="{'readonly':[('parent_state','=','posted')]}"
+                                                               on_change="1" can_create="true" can_write="true"
+                                                               modifiers="{&quot;readonly&quot;: [[&quot;parent_state&quot;, &quot;=&quot;, &quot;posted&quot;]], &quot;required&quot;: true}"/>
+                                                        <field name="debit"
+                                                               attrs="{'readonly':[('parent_state','=','posted')]}"
+                                                               modifiers="{&quot;readonly&quot;: [[&quot;parent_state&quot;, &quot;=&quot;, &quot;posted&quot;]]}"/>
+                                                        <field name="credit"
+                                                               attrs="{'readonly':[('parent_state','=','posted')]}"
+                                                               modifiers="{&quot;readonly&quot;: [[&quot;parent_state&quot;, &quot;=&quot;, &quot;posted&quot;]]}"/>
+                                                        <field name="quantity" modifiers="{}"/>
                                                     </group>
-                                                    <field name="narration" colspan="4" nolabel="1"
-                                                           placeholder="Añadir una nota interna..." modifiers="{}"/>
-                                                </page>
-                                                <page string="Líneas analíticas"
-                                                      studio_groups="[{&quot;id&quot;: 14, &quot;name&quot;: &quot;Contabilidad anal\u00edtica&quot;, &quot;display_name&quot;: &quot;Configuraci\u00f3n t\u00e9cnica / Contabilidad anal\u00edtica&quot;}]"
-                                                      name="studio_page_8e7f0a">
-                                                    <field name="date" invisible="1"
-                                                           modifiers="{&quot;invisible&quot;: true}"/>
-                                                    <field name="analytic_line_ids"
-                                                           context="{'default_general_account_id':account_id, 'default_name': name, 'default_date':date, 'amount': (debit or 0.0)-(credit or 0.0)}"
-                                                           modifiers="{}"/>
-                                                </page>
-                                            </notebook>
-                                        </sheet>
-                                    </form>
-                                    <tree string="Apuntes contables" create="false">
-                                        <field name="date" modifiers="{}"/>
-                                        <field name="move_id" required="0" on_change="1" can_create="true"
-                                               can_write="true"
-                                               studio_groups="[{&quot;id&quot;: 24, &quot;name&quot;: &quot;Mostrar caracter\u00edsticas de contabilidad completas&quot;, &quot;display_name&quot;: &quot;Contabilidad y Finanzas / Mostrar caracter\u00edsticas de contabilidad completas&quot;}]"
-                                               modifiers="{}"/>
-                                        <field name="journal_id" options="{&quot;no_open&quot;:True}" can_create="true"
-                                               can_write="true" modifiers="{}"/>
-                                        <field name="name" modifiers="{}"/>
-                                        <field name="ref" modifiers="{}"/>
-                                        <field name="statement_id" invisible="1" can_create="true" can_write="true"
-                                               modifiers="{&quot;column_invisible&quot;: true}"/>
-                                        <field name="partner_id" can_create="true" can_write="true" modifiers="{}"/>
-                                        <field name="account_id" options="{&quot;no_open&quot;:True}"
-                                               domain="[('company_id', '=', company_id)]" on_change="1"
-                                               can_create="true" can_write="true"
-                                               studio_groups="[{&quot;id&quot;: 24, &quot;name&quot;: &quot;Mostrar caracter\u00edsticas de contabilidad completas&quot;, &quot;display_name&quot;: &quot;Contabilidad y Finanzas / Mostrar caracter\u00edsticas de contabilidad completas&quot;}]"
-                                               modifiers="{&quot;required&quot;: true}"/>
-                                        <field name="analytic_account_id" can_create="true" can_write="true"
-                                               studio_groups="[{&quot;id&quot;: 24, &quot;name&quot;: &quot;Mostrar caracter\u00edsticas de contabilidad completas&quot;, &quot;display_name&quot;: &quot;Contabilidad y Finanzas / Mostrar caracter\u00edsticas de contabilidad completas&quot;}]"
-                                               modifiers="{}"/>
-                                        <field name="reconciled" invisible="1"
-                                               modifiers="{&quot;readonly&quot;: true, &quot;column_invisible&quot;: true}"/>
-                                        <field name="full_reconcile_id" can_create="true" can_write="true"
-                                               modifiers="{}"/>
-                                        <field name="amount_to_pay"/>
-                                        <field name="debit" sum="Débito total" on_change="1" modifiers="{}"/>
-                                        <field name="credit" sum="Crédito total" on_change="1" modifiers="{}"/>
-                                        <field name="amount_currency" readonly="True" on_change="1"
-                                               studio_groups="[{&quot;id&quot;: 6, &quot;name&quot;: &quot;Multimoneda&quot;, &quot;display_name&quot;: &quot;Permisos extra / Multimoneda&quot;}]"
-                                               modifiers="{&quot;readonly&quot;: true}"/>
-                                        <field name="currency_id" readonly="True" invisible="1" on_change="1"
-                                               can_create="true" can_write="true"
-                                               modifiers="{&quot;readonly&quot;: true, &quot;column_invisible&quot;: true}"/>
-                                        <field name="date_maturity" modifiers="{&quot;required&quot;: true}"/>
-                                        <field name="company_currency_id" invisible="1" can_create="true"
-                                               can_write="true"
-                                               modifiers="{&quot;readonly&quot;: true, &quot;column_invisible&quot;: true}"/>
-                                        <field name="company_id" invisible="1" on_change="1" can_create="true"
-                                               can_write="true"
-                                               modifiers="{&quot;readonly&quot;: true, &quot;column_invisible&quot;: true}"/>
-                                    </tree>
-                                </xpath>
+                                                    <group string="Documentos contables" name="group1b">
+                                                        <field name="move_id"
+                                                               attrs="{'readonly':[('parent_state','=','posted')]}"
+                                                               on_change="1" can_create="true" can_write="true"
+                                                               modifiers="{&quot;readonly&quot;: [[&quot;parent_state&quot;, &quot;=&quot;, &quot;posted&quot;]], &quot;required&quot;: true}"/>
+                                                        <field name="statement_id" readonly="True"
+                                                               attrs="{'invisible': [('statement_id','=',False)]}"
+                                                               can_create="true" can_write="true"
+                                                               modifiers="{&quot;readonly&quot;: true, &quot;invisible&quot;: [[&quot;statement_id&quot;, &quot;=&quot;, false]]}"/>
+                                                        <field name="invoice_id"
+                                                               attrs="{'invisible': [('invoice_id','=',False)]}"
+                                                               can_create="true" can_write="true"
+                                                               modifiers="{&quot;invisible&quot;: [[&quot;invoice_id&quot;, &quot;=&quot;, false]]}"/>
+                                                        <field name="amount_to_pay"/>
+                                                    </group>
+                                                    <group string="Fechas" name="group1c">
+                                                        <field name="date_maturity"
+                                                               modifiers="{&quot;required&quot;: true}"/>
+                                                    </group>
+                                                    <group string="Impuestos"
+                                                           attrs="{'invisible': [('tax_line_id','=',False), ('tax_ids','=',[])]}"
+                                                           modifiers="{&quot;invisible&quot;: [[&quot;tax_line_id&quot;, &quot;=&quot;, false], [&quot;tax_ids&quot;, &quot;=&quot;, []]]}"
+                                                           name="studio_group_d6264d">
+                                                        <field name="tax_line_id" readonly="1"
+                                                               attrs="{'invisible': [('tax_line_id','=',False)]}"
+                                                               can_create="true" can_write="true"
+                                                               modifiers="{&quot;readonly&quot;: true, &quot;invisible&quot;: [[&quot;tax_line_id&quot;, &quot;=&quot;, false]]}"/>
+                                                        <field name="tax_ids" widget="many2many_tags" readonly="1"
+                                                               attrs="{'invisible': [('tax_ids','=',[])]}"
+                                                               can_create="true" can_write="true"
+                                                               modifiers="{&quot;readonly&quot;: true, &quot;invisible&quot;: [[&quot;tax_ids&quot;, &quot;=&quot;, []]]}"/>
+                                                    </group>
+                                                    <group string="Conciliación"
+                                                           attrs="{'invisible':[('full_reconcile_id','=',False)]}"
+                                                           modifiers="{&quot;invisible&quot;: [[&quot;full_reconcile_id&quot;, &quot;=&quot;, false]]}"
+                                                           name="studio_group_b61c40">
+                                                        <label for="full_reconcile_id"/>
+                                                        <div name="div1">
+                                                            <field name="full_reconcile_id" can_create="true"
+                                                                   can_write="true" modifiers="{}"/>
+                                                            <field name="matched_debit_ids" invisible="1"
+                                                                   modifiers="{&quot;invisible&quot;: true}"/>
+                                                            <field name="matched_credit_ids" invisible="1"
+                                                                   modifiers="{&quot;invisible&quot;: true}"/>
+                                                            <button name="open_reconcile_view" class="oe_link"
+                                                                    type="object"
+                                                                    string="-&gt; Ver entradas parcialmente conciliadas"
+                                                                    attrs="{'invisible': ['|', ('full_reconcile_id', '!=', False), '&amp;', ('matched_debit_ids', '=', []),('matched_credit_ids', '=', [])]}"
+                                                                    modifiers="{&quot;invisible&quot;: [&quot;|&quot;, [&quot;full_reconcile_id&quot;, &quot;!=&quot;, false], &quot;&amp;&quot;, [&quot;matched_debit_ids&quot;, &quot;=&quot;, []], [&quot;matched_credit_ids&quot;, &quot;=&quot;, []]]}">
+                                                            </button>
+                                                        </div>
+                                                    </group>
+                                                    <group string="Moneda"
+                                                           studio_groups="[{&quot;id&quot;: 6, &quot;name&quot;: &quot;Multimoneda&quot;, &quot;display_name&quot;: &quot;Permisos extra / Multimoneda&quot;}]"
+                                                           name="studio_group_c06a59">
+                                                        <field name="currency_id" invisible="1" on_change="1"
+                                                               can_create="true" can_write="true"
+                                                               modifiers="{&quot;invisible&quot;: true}"/>
+                                                        <field name="amount_currency" on_change="1" modifiers="{}"/>
+                                                    </group>
+                                                    <group string="Estados" name="studio_group_36f2b5">
+                                                        <field name="blocked" modifiers="{}"/>
+                                                    </group>
+                                                    <group string="Analítico"
+                                                           studio_groups="[{&quot;id&quot;: 14, &quot;name&quot;: &quot;Contabilidad anal\u00edtica&quot;, &quot;display_name&quot;: &quot;Configuraci\u00f3n t\u00e9cnica / Contabilidad anal\u00edtica&quot;}]"
+                                                           name="studio_group_2f6c18">
+                                                        <field name="analytic_account_id" can_create="true"
+                                                               can_write="true" modifiers="{}"/>
+                                                        <field name="analytic_tag_ids" widget="many2many_tags"
+                                                               can_create="true" can_write="true" modifiers="{}"/>
+                                                    </group>
+                                                </group>
+                                                <field name="narration" colspan="4" nolabel="1"
+                                                       placeholder="Añadir una nota interna..." modifiers="{}"/>
+                                            </page>
+                                            <page string="Líneas analíticas"
+                                                  studio_groups="[{&quot;id&quot;: 14, &quot;name&quot;: &quot;Contabilidad anal\u00edtica&quot;, &quot;display_name&quot;: &quot;Configuraci\u00f3n t\u00e9cnica / Contabilidad anal\u00edtica&quot;}]"
+                                                  name="studio_page_8e7f0a">
+                                                <field name="date" invisible="1"
+                                                       modifiers="{&quot;invisible&quot;: true}"/>
+                                                <field name="analytic_line_ids"
+                                                       context="{'default_general_account_id':account_id, 'default_name': name, 'default_date':date, 'amount': (debit or 0.0)-(credit or 0.0)}"
+                                                       modifiers="{}"/>
+                                            </page>
+                                        </notebook>
+                                    </sheet>
+                                </form>
+                                <tree string="Apuntes contables" create="false">
+                                    <field name="date" modifiers="{}"/>
+                                    <field name="move_id" required="0" on_change="1" can_create="true"
+                                           can_write="true"
+                                           studio_groups="[{&quot;id&quot;: 24, &quot;name&quot;: &quot;Mostrar caracter\u00edsticas de contabilidad completas&quot;, &quot;display_name&quot;: &quot;Contabilidad y Finanzas / Mostrar caracter\u00edsticas de contabilidad completas&quot;}]"
+                                           modifiers="{}"/>
+                                    <field name="journal_id" options="{&quot;no_open&quot;:True}" can_create="true"
+                                           can_write="true" modifiers="{}"/>
+                                    <field name="name" modifiers="{}"/>
+                                    <field name="ref" modifiers="{}"/>
+                                    <field name="statement_id" invisible="1" can_create="true" can_write="true"
+                                           modifiers="{&quot;column_invisible&quot;: true}"/>
+                                    <field name="partner_id" can_create="true" can_write="true" modifiers="{}"/>
+                                    <field name="account_id" options="{&quot;no_open&quot;:True}"
+                                           domain="[('company_id', '=', company_id)]" on_change="1"
+                                           can_create="true" can_write="true"
+                                           studio_groups="[{&quot;id&quot;: 24, &quot;name&quot;: &quot;Mostrar caracter\u00edsticas de contabilidad completas&quot;, &quot;display_name&quot;: &quot;Contabilidad y Finanzas / Mostrar caracter\u00edsticas de contabilidad completas&quot;}]"
+                                           modifiers="{&quot;required&quot;: true}"/>
+                                    <field name="analytic_account_id" can_create="true" can_write="true"
+                                           studio_groups="[{&quot;id&quot;: 24, &quot;name&quot;: &quot;Mostrar caracter\u00edsticas de contabilidad completas&quot;, &quot;display_name&quot;: &quot;Contabilidad y Finanzas / Mostrar caracter\u00edsticas de contabilidad completas&quot;}]"
+                                           modifiers="{}"/>
+                                    <field name="reconciled" invisible="1"
+                                           modifiers="{&quot;readonly&quot;: true, &quot;column_invisible&quot;: true}"/>
+                                    <field name="full_reconcile_id" can_create="true" can_write="true"
+                                           modifiers="{}"/>
+                                    <field name="amount_to_pay"/>
+                                    <field name="debit" sum="Débito total" on_change="1" modifiers="{}"/>
+                                    <field name="credit" sum="Crédito total" on_change="1" modifiers="{}"/>
+                                    <field name="amount_currency" readonly="True" on_change="1"
+                                           studio_groups="[{&quot;id&quot;: 6, &quot;name&quot;: &quot;Multimoneda&quot;, &quot;display_name&quot;: &quot;Permisos extra / Multimoneda&quot;}]"
+                                           modifiers="{&quot;readonly&quot;: true}"/>
+                                    <field name="currency_id" readonly="True" invisible="1" on_change="1"
+                                           can_create="true" can_write="true"
+                                           modifiers="{&quot;readonly&quot;: true, &quot;column_invisible&quot;: true}"/>
+                                    <field name="date_maturity" modifiers="{&quot;required&quot;: true}"/>
+                                    <field name="company_currency_id" invisible="1" can_create="true"
+                                           can_write="true"
+                                           modifiers="{&quot;readonly&quot;: true, &quot;column_invisible&quot;: true}"/>
+                                    <field name="company_id" invisible="1" on_change="1" can_create="true"
+                                           can_write="true"
+                                           modifiers="{&quot;readonly&quot;: true, &quot;column_invisible&quot;: true}"/>
+                                </tree>
                             </field>
                         </page>
                         <page string="Paid" states="posted">
