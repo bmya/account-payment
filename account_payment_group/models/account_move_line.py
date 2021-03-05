@@ -22,7 +22,7 @@ class AccountMoveLine(models.Model):
         # auto_join=True,
     )
     amount_to_pay = fields.Monetary(string="Deuda Seleccionada", currency_field='company_currency_id',
-                                    default=lambda self: self.balance)
+                                    default=lambda self: self.amount_residual)
 
     @api.multi
     def _compute_payment_group_matched_amount(self):
