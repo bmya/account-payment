@@ -21,7 +21,8 @@ class AccountMoveLine(models.Model):
         # https://github.com/odoo/odoo/blob/master/odoo/osv/expression.py#L899
         # auto_join=True,
     )
-    amount_to_pay = fields.Monetary(string="Deuda Seleccionada", currency_field='company_currency_id')
+    amount_to_pay = fields.Monetary(string="Deuda Seleccionada", currency_field='company_currency_id',
+                                    default=lambda self: self.balance)
 
     @api.multi
     def _compute_payment_group_matched_amount(self):

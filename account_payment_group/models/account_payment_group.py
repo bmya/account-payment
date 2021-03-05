@@ -636,5 +636,5 @@ class AccountPaymentGroup(models.Model):
     @api.constrains('state', 'payment_difference')
     def _constrains_zero_diff(self):
         for record in self:
-            if record.state in ['confirmed', 'posted'] and record.payment_difference != 0:
+            if record.state in ['confirmed', 'posted'] and round(record.payment_difference, 2) != 0:
                 raise ValidationError('El monto a pagar no coincide con el pago seleccionado')
