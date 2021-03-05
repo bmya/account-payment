@@ -21,18 +21,18 @@ class AccountMoveLine(models.Model):
         # https://github.com/odoo/odoo/blob/master/odoo/osv/expression.py#L899
         # auto_join=True,
     )
+    amount_to_pay = fields.Monetary(string="Deuda Seleccionada", currency_field='company_currency_id')
 
     @api.multi
     def _compute_payment_group_matched_amount(self):
         """
-        Reciviendo un payment_group_id por contexto, decimos en ese payment
+        Recibiendo un payment_group_id por contexto, decimos en ese payment
         group, cuanto se pago para la lína en cuestión.
         """
         payment_group_id = self._context.get('payment_group_id')
         if not payment_group_id:
             return False
-        payments = self.env['account.payment.group'].browse(
-            payment_group_id).payment_ids
+        payments = self.env['account.payment.group'].browse(payment_group_id).payment_ids
         payment_move_lines = payments.mapped('move_line_ids')
 
         for rec in self:

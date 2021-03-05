@@ -119,7 +119,7 @@ class AccountPaymentGroup(models.Model):
         inverse='_inverse_to_pay_amount',
         string='To Pay Amount',
         # string='Total To Pay Amount',
-        readonly=True,
+        readonly=False,
         states={'draft': [('readonly', False)]},
         track_visibility='always',
     )
@@ -363,12 +363,14 @@ class AccountPaymentGroup(models.Model):
         Buscamos primeros todas las que tienen en credit_move_id algun apunte
         de los que se genero con un pago, etnonces la contrapartida
         (debit_move_id), son cosas que se pagaron con este pago. Repetimos
-        al revz (debit_move_id vs credit_move_id)
+        al revés (debit_move_id vs credit_move_id)
         """
         for rec in self:
             lines = rec.move_line_ids.browse()
             # not sure why but self.move_line_ids dont work the same way
-            payment_lines = rec.payment_ids.mapped('move_line_ids')
+            # daniel: remuevo esta linea para buscar otro dominio de pago
+            # payment_lines = rec.payment_ids.mapped('move_line_ids')
+            payment_lines = rec.debt_move_line_ids.filtered(lambda x: x.amount_to_pay)
 
             reconciles = rec.env['account.partial.reconcile'].search([
                 ('credit_move_id', 'in', payment_lines.ids)])
@@ -424,27 +426,30 @@ class AccountPaymentGroup(models.Model):
         'to_pay_move_line_ids.invoice_id',
         'payment_date',
         'currency_id',
+        'debt_move_line_ids.amount_to_pay',
+        'to_pay_move_line_ids.amount_to_pay',
     )
     def _compute_selected_debt(self):
         for rec in self:
             selected_finacial_debt = 0.0
             selected_debt = 0.0
             selected_debt_untaxed = 0.0
+            sign = rec.partner_type == 'supplier' and -1.0 or 1.0
             for line in rec.to_pay_move_line_ids:
                 selected_finacial_debt += line.financial_amount_residual
-                selected_debt += line.amount_residual
+                # selected_debt += line.amount_residual
+                selected_debt += line.amount_to_pay * sign
                 # factor for total_untaxed
                 invoice = line.invoice_id
                 factor = invoice and invoice._get_tax_factor() or 1.0
-                selected_debt_untaxed += line.amount_residual * factor
-            sign = rec.partner_type == 'supplier' and -1.0 or 1.0
+                # selected_debt_untaxed += line.amount_residual * factor
+                selected_debt_untaxed += line.amount_to_pay * sign * factor
             rec.selected_finacial_debt = selected_finacial_debt * sign
             rec.selected_debt = selected_debt * sign
             rec.selected_debt_untaxed = selected_debt_untaxed * sign
 
     @api.multi
-    @api.depends(
-        'selected_debt', 'unreconciled_amount')
+    @api.depends('selected_debt', 'unreconciled_amount')
     def _compute_to_pay_amount(self):
         for rec in self:
             rec.to_pay_amount = rec.selected_debt + rec.unreconciled_amount
@@ -465,6 +470,8 @@ class AccountPaymentGroup(models.Model):
         for rec in self:
             rec.payment_ids = [(2, item.id, 0) for item in rec.payment_ids]
             rec.add_all()
+            for line in rec.debt_move_line_ids.filtered(lambda x: x.amount_to_pay):
+                line.amount_to_pay = 0
 
     @api.multi
     def onchange(self, values, field_name, field_onchange):
@@ -473,14 +480,11 @@ class AccountPaymentGroup(models.Model):
         """
         fields = []
         for field in field_onchange.keys():
-            if field.startswith((
-                    'to_pay_move_line_ids.',
-                    'debt_move_line_ids.')):
+            if field.startswith(('to_pay_move_line_ids.', 'debt_move_line_ids.')):
                 fields.append(field)
         for field in fields:
             del field_onchange[field]
-        return super(AccountPaymentGroup, self).onchange(
-            values, field_name, field_onchange)
+        return super(AccountPaymentGroup, self).onchange(values, field_name, field_onchange)
 
     @api.multi
     def _get_to_pay_move_lines_domain(self):
@@ -501,8 +505,7 @@ class AccountPaymentGroup(models.Model):
     @api.multi
     def add_all(self):
         for rec in self:
-            rec.to_pay_move_line_ids = rec.env['account.move.line'].search(
-                rec._get_to_pay_move_lines_domain())
+            rec.to_pay_move_line_ids = rec.env['account.move.line'].search(rec._get_to_pay_move_lines_domain())
 
     @api.multi
     def remove_all(self):
@@ -579,8 +582,7 @@ class AccountPaymentGroup(models.Model):
     @api.multi
     def unlink(self):
         if any(rec.state != 'draft' for rec in self):
-            raise ValidationError(_(
-                "You can not delete a payment that is already posted"))
+            raise ValidationError(_("You can not delete a payment that is already posted"))
         return super(AccountPaymentGroup, self).unlink()
 
     @api.multi
@@ -588,8 +590,7 @@ class AccountPaymentGroup(models.Model):
         for rec in self:
             accounts = rec.to_pay_move_line_ids.mapped('account_id')
             if len(accounts) > 1:
-                raise ValidationError(_(
-                    'To Pay Lines must be of the same account!'))
+                raise ValidationError(_('To Pay Lines must be of the same account!'))
         self.write({'state': 'confirmed'})
 
     @api.multi
@@ -598,27 +599,21 @@ class AccountPaymentGroup(models.Model):
         # break behaviour, for eg. with demo user error writing account.account
         # and with other users, error with block date of accounting
         # TODO we should look for a better way to solve this
-
-        create_from_website = self._context.get(
-            'create_from_website', False)
-        create_from_statement = self._context.get(
-            'create_from_statement', False)
+        create_from_website = self._context.get('create_from_website', False)
+        create_from_statement = self._context.get('create_from_statement', False)
         create_from_expense = self._context.get('create_from_expense', False)
         self = self.with_context({})
         for rec in self:
             # TODO if we want to allow writeoff then we can disable this
             # constrain and send writeoff_journal_id and writeoff_acc_id
             if not rec.payment_ids:
-                raise ValidationError(_(
-                    'You can not confirm a payment group without payment '
-                    'lines!'))
+                raise ValidationError(_('You can not confirm a payment group without payment lines!'))
             # si el pago se esta posteando desde statements y hay doble
             # validacion no verificamos que haya deuda seleccionada
             if (rec.payment_subtype == 'double_validation' and
                     rec.payment_difference and (not create_from_statement and
                                                 not create_from_expense)):
-                raise ValidationError(_(
-                    'To Pay Amount and Payment Amount must be equal!'))
+                raise ValidationError(_('To Pay Amount and Payment Amount must be equal!'))
 
             writeoff_acc_id = False
             writeoff_journal_id = False
@@ -629,13 +624,17 @@ class AccountPaymentGroup(models.Model):
                 rec.payment_ids.filtered(lambda x: x.state == 'draft').post()
 
             counterpart_aml = rec.payment_ids.mapped('move_line_ids').filtered(
-                lambda r: not r.reconciled and r.account_id.internal_type in (
-                    'payable', 'receivable'))
+                lambda r: not r.reconciled and r.account_id.internal_type in ('payable', 'receivable'))
 
             # porque la cuenta podria ser no recivible y ni conciliable
             # (por ejemplo en sipreco)
             if counterpart_aml and rec.to_pay_move_line_ids:
-                (counterpart_aml + (rec.to_pay_move_line_ids)).reconcile(
-                    writeoff_acc_id, writeoff_journal_id)
+                (counterpart_aml + (rec.to_pay_move_line_ids)).reconcile(writeoff_acc_id, writeoff_journal_id)
 
             rec.state = 'posted'
+
+    @api.constrains('state', 'payment_difference')
+    def _constrains_zero_diff(self):
+        for record in self:
+            if record.state in ['confirmed', 'posted'] and record.payment_difference != 0:
+                raise ValidationError('El monto a pagar no coincide con el pago seleccionado')
