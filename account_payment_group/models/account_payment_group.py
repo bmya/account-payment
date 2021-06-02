@@ -241,6 +241,18 @@ class AccountPaymentGroup(models.Model):
         help="It indicates that the receipt has been sent."
     )
 
+    amounto_total_to_pay = fields.Monetary(
+        # string='To Pay lines Amount',
+        string='Montotal por pagar',
+        compute='_compute_amount_total_to_pay',
+    )
+
+    amounto_total_invoiced = fields.Monetary(
+        # string='To Pay lines Amount',
+        string='Monto total facturado',
+        compute='_compute_amounto_total_invoiced',
+    )
+
     @api.multi
     @api.depends(
         'state',
@@ -432,22 +444,28 @@ class AccountPaymentGroup(models.Model):
             selected_debt_untaxed = 0.0
             for line in rec.to_pay_move_line_ids:
                 selected_finacial_debt += line.financial_amount_residual
-                selected_debt += line.amount_residual
+                selected_debt += line.amount_parcial if rec.partner_type != 'supplier' else -line.amount_parcial
                 # factor for total_untaxed
                 invoice = line.invoice_id
                 factor = invoice and invoice._get_tax_factor() or 1.0
-                selected_debt_untaxed += line.amount_residual * factor
+                selected_debt_untaxed += (line.amount_parcial if rec.partner_type != 'supplier' else -line.amount_parcial) * factor
             sign = rec.partner_type == 'supplier' and -1.0 or 1.0
             rec.selected_finacial_debt = selected_finacial_debt * sign
             rec.selected_debt = selected_debt * sign
             rec.selected_debt_untaxed = selected_debt_untaxed * sign
+
+    def _compute_amount_total_to_pay(self):
+        self.amount_total_to_pay = sum(self.payment_ids.mapped('amount'))
+
+    def _compute_amounto_total_invoiced(self):
+        self.amounto_total_invoiced = sum(self.debt_move_line_ids.mapped('amount_parcial'))
 
     @api.multi
     @api.depends(
         'selected_debt', 'unreconciled_amount')
     def _compute_to_pay_amount(self):
         for rec in self:
-            rec.to_pay_amount = rec.selected_debt + rec.unreconciled_amount
+            rec.to_pay_amount = rec.selected_debt
 
     @api.multi
     @api.onchange('to_pay_amount')
@@ -601,6 +619,8 @@ class AccountPaymentGroup(models.Model):
         # and with other users, error with block date of accounting
         # TODO we should look for a better way to solve this
 
+        if self.payment_difference != 0:
+            raise ValidationError(_('Diferencia de Pagos debe ser 0'))
         create_from_website = self._context.get(
             'create_from_website', False)
         create_from_statement = self._context.get(
