@@ -92,17 +92,21 @@ class AccountMoveLine(models.Model):
             # and thus the amount_residual are not recomputed, hence we have to do it manually.
             if debit_move.amount_parcial > 0:
                 if debit_move.amount_parcial <= -credit_move.amount_residual:
+                    debit_move.amount_parcial = 0
                     debit_moves -= debit_move
                     credit_moves[0].amount_residual += temp_amount_residual
                 else:
+                    credit_move.amount_parcial = 0
                     credit_moves -= credit_move
                     debit_moves[0].amount_parcial -= temp_amount_residual
                     debit_moves[0].amount_residual -= temp_amount_residual
             elif credit_move.amount_parcial > 0:
                 if credit_move.amount_parcial <= debit_move.amount_residual:
+                    credit_move.amount_parcial = 0
                     credit_moves -= credit_move
                     debit_moves[0].amount_residual -= temp_amount_residual
                 else:
+                    debit_move.amount_parcial = 0
                     debit_moves -= debit_move
                     credit_moves[0].amount_parcial -= temp_amount_residual
                     credit_moves[0].amount_residual += temp_amount_residual
@@ -138,15 +142,16 @@ class AccountMoveLine(models.Model):
             if cash_basis:
                 tmp_set = debit_move | credit_move
                 cash_basis_percentage_before_rec.update(tmp_set._get_matched_percentage())
-
-            to_create.append({
+            data = {
                 'debit_move_id': debit_move.id,
                 'credit_move_id': credit_move.id,
                 'amount': amount_reconcile,
                 'amount_currency': amount_reconcile_currency,
                 'currency_id': currency,
-            })
-
+            }
+            if 'payment_group_id' in self._context:
+                data['payment_group_id'] = self._context['payment_group_id']
+            to_create.append(data)
         cash_basis_subjected = []
         part_rec = self.env['account.partial.reconcile']
         with self.env.norecompute():
@@ -173,6 +178,30 @@ class AccountMoveLine(models.Model):
 
     @api.multi
     def write(self, vals):
-        if 'amount_parcial' in vals and 'date' in vals:
-            del(vals['date'])
-        return super(AccountMoveLine, self).write(vals)
+        for rec in self:
+            if rec.move_id.state != 'posted':
+                return super(AccountMoveLine, rec).write(vals)
+            elif 'amount_parcial' in vals:
+                return super(AccountMoveLine, rec).write(vals)
+
+    @api.multi
+    def remove_move_reconcile(self):
+        """ Undo a reconciliation """
+        if not self:
+            return True
+        rec_move_ids = self.env['account.partial.reconcile']
+        for account_move_line in self:
+            for invoice in account_move_line.payment_id.invoice_ids:
+                if invoice.id == self.env.context.get(
+                        'invoice_id') and account_move_line in invoice.payment_move_line_ids:
+                    account_move_line.payment_id.write({'invoice_ids': [(3, invoice.id, None)]})
+            rec_move_ids += account_move_line.matched_debit_ids
+            rec_move_ids += account_move_line.matched_credit_ids
+        if self.env.context.get('invoice_id'):
+            current_invoice = self.env['account.invoice'].browse(self.env.context['invoice_id'])
+            aml_to_keep = current_invoice.move_id.line_ids | current_invoice.move_id.line_ids.mapped(
+                'full_reconcile_id.exchange_move_id.line_ids')
+            rec_move_ids = rec_move_ids.filtered(
+                lambda r: (r.debit_move_id + r.credit_move_id) & aml_to_keep
+            )
+        return rec_move_ids.unlink()

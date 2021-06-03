@@ -570,7 +570,7 @@ msgstr "Comp. Imputados"
 #. module: account_payment_group
 #: model_terms:ir.ui.view,arch_db:account_payment_group.view_move_line_with_matched_tree
 msgid "Paid Amount"
-msgstr "Importe imputado"
+msgstr "Monto Pendiente"
 
 #. module: account_payment_group
 #: model:ir.model.fields,field_description:account_payment_group.field_account_payment_group__partner_id

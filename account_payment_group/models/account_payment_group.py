@@ -581,11 +581,10 @@ class AccountPaymentGroup(models.Model):
     def cancel(self):
         for rec in self:
             # because child payments dont have invoices we remove reconcile
-            for move in rec.move_line_ids.mapped('move_id'):
-                rec.matched_move_line_ids.remove_move_reconcile()
-                # TODO borrar esto si con el de arriba va bien
-                # if rec.to_pay_move_line_ids:
-                #     move.line_ids.remove_move_reconcile()
+            for matched_debit_ids in rec.move_line_ids.mapped('matched_debit_ids').filtered(lambda debit: debit.payment_group_id.id == rec.id):
+                matched_debit_ids.unlink()
+            for matched_credit_ids in rec.move_line_ids.mapped('matched_credit_ids').filtered(lambda credit: credit.payment_group_id.id == rec.id):
+                matched_credit_ids.unlink()
             rec.payment_ids.cancel()
             rec.payment_ids.write({'invoice_ids': [(5, 0, 0)]})
         self.write({'state': 'cancel'})
@@ -627,7 +626,7 @@ class AccountPaymentGroup(models.Model):
             'create_from_statement', False)
         create_from_expense = self._context.get('create_from_expense', False)
         for rec in self:
-            rec = rec.with_context({'company_id': rec.company_id.id})
+            rec = rec.with_context(company_id=rec.company_id.id, payment_group_id=self.id)
             # TODO if we want to allow writeoff then we can disable this
             # constrain and send writeoff_journal_id and writeoff_acc_id
             if not rec.payment_ids:

@@ -19,9 +19,9 @@
             <field name="account_id" options='{"no_open":True}' domain="[('company_id', '=', company_id)]"/>
             <!-- <field name="analytic_account_id" groups="analytic.group_analytic_accounting"/> -->
             <!-- <field name="reconciled"/> -->
-             <field name="amount_parcial"/>
-            <field name="balance" string="Amount"/>
+            <field name="amount_parcial"/>
             <field name="amount_residual" sum="Total"/>
+            <field name="balance" string="Amount"/>
             <!-- TODO si activamos este monto ver si queremos poner la currency, probamos el widget pero no anduvo -->
             <field name="amount_currency" groups="base.group_multi_currency"/>
             <field name="amount_residual_currency" groups="base.group_multi_currency"/>
@@ -44,9 +44,11 @@
     <field name="mode">primary</field>
     <field name="inherit_id" ref="account_payment_group.view_move_line_tree"/>
     <field name="arch" type="xml">
-        <field name="amount_residual" position="replace">
+        <field name="balance" position="before">
             <field name="payment_group_matched_amount" string="Paid Amount" sum="Total"/>
         </field>
+        <field name="amount_parcial" position="replace"></field>
+        <field name="amount_residual" position="replace"></field>
         <field name="amount_residual_currency" position="replace">
             <field name="financial_amount_residual" sum="Total" groups="account_financial_amount.account_use_financial_amounts"/>
         </field>
