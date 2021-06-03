@@ -78,6 +78,9 @@ class AccountMoveLine(models.Model):
             if debit_move.amount_parcial > 0:
                 temp_amount = debit_move.amount_parcial if debit_move.amount_parcial < -credit_move.amount_residual else -credit_move.amount_residual
                 recon_amount = debit_move.amount_parcial if debit_move.amount_parcial < -credit_move[field] else -credit_move[field]
+            if credit_move.amount_parcial > 0:
+                temp_amount = credit_move.amount_parcial if credit_move.amount_parcial < debit_move.amount_residual else debit_move.amount_residual
+                recon_amount = credit_move.amount_parcial if credit_move.amount_parcial < debit_move[field] else debit_move[field]
             temp_amount_residual = min(debit_move.amount_residual, temp_amount)
             temp_amount_residual_currency = min(debit_move.amount_residual_currency, -credit_move.amount_residual_currency)
             dc_vals[(debit_move.id, credit_move.id)] = (debit_move, credit_move, temp_amount_residual_currency)
@@ -88,12 +91,21 @@ class AccountMoveLine(models.Model):
             # therefore during the process of reconciling several move lines, there are actually no recompute performed by the orm
             # and thus the amount_residual are not recomputed, hence we have to do it manually.
             if debit_move.amount_parcial > 0:
-                if debit_move.amount_residual <= -credit_move.amount_residual:
+                if debit_move.amount_parcial <= -credit_move.amount_residual:
                     debit_moves -= debit_move
                     credit_moves[0].amount_residual += temp_amount_residual
                 else:
                     credit_moves -= credit_move
+                    debit_moves[0].amount_parcial -= temp_amount_residual
                     debit_moves[0].amount_residual -= temp_amount_residual
+            elif credit_move.amount_parcial > 0:
+                if credit_move.amount_parcial <= debit_move.amount_residual:
+                    credit_moves -= credit_move
+                    debit_moves[0].amount_residual -= temp_amount_residual
+                else:
+                    debit_moves -= debit_move
+                    credit_moves[0].amount_parcial -= temp_amount_residual
+                    credit_moves[0].amount_residual += temp_amount_residual
             else:
                 if amount_reconcile == debit_move[field]:
                     debit_moves -= debit_move
