@@ -341,7 +341,11 @@ class AccountPaymentGroup(models.Model):
     @api.depends('to_pay_move_line_ids')
     def _compute_debt_move_line_ids(self):
         for rec in self:
-            rec.debt_move_line_ids = rec.to_pay_move_line_ids
+            type_account = rec.to_pay_move_line_ids.mapped('account_id.user_type_id.type')
+            if 'payable' in type_account:
+                rec.debt_move_line_ids = rec.to_pay_move_line_ids.filtered(lambda pay: pay.amount_residual < 0)
+            if 'receivable' in type_account:
+                rec.debt_move_line_ids = rec.to_pay_move_line_ids.filtered(lambda pay: pay.amount_residual > 0)
 
     @api.multi
     @api.onchange('debt_move_line_ids')
@@ -473,6 +477,7 @@ class AccountPaymentGroup(models.Model):
         for rec in self:
             rec.unreconciled_amount = rec.to_pay_amount - rec.selected_debt
 
+
     @api.multi
     @api.onchange('partner_id', 'partner_type', 'company_id')
     def _refresh_payments_and_move_lines(self):
@@ -482,6 +487,10 @@ class AccountPaymentGroup(models.Model):
             return
         for rec in self:
             rec.payment_ids = [(2, item.id, 0) for item in rec.payment_ids]
+            if rec.account_internal_type == 'payable':
+                rec.payment_ids = [(6, 0, self.env['account.payment'].search([('partner_id', '=', rec.partner_id.id), ('state', '=', 'posted'), ('partner_type', '=', 'supplier')]).ids)]
+            if rec.account_internal_type == 'receivable':
+                rec.payment_ids = [(6, 0, self.env['account.payment'].search([('partner_id', '=', rec.partner_id.id), ('state', '=', 'posted'), ('partner_type', '=', 'customer')]).ids)]
             rec.add_all()
 
     @api.multi
@@ -625,6 +634,7 @@ class AccountPaymentGroup(models.Model):
         create_from_statement = self._context.get(
             'create_from_statement', False)
         create_from_expense = self._context.get('create_from_expense', False)
+
         for rec in self:
             rec = rec.with_context(company_id=rec.company_id.id, payment_group_id=self.id)
             # TODO if we want to allow writeoff then we can disable this

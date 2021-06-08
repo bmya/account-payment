@@ -68,7 +68,6 @@
                     }
                 </style>
             </form>
-
             <!-- we make title invisible and we add a new one -->
             <div class="oe_title" position="attributes">
                 <!-- <attribute name="invisible">1</attribute> -->
@@ -80,7 +79,6 @@
                     <h1><field name="payment_group_id"/></h1>
                 </div>
             </div>
-
             <!-- seccion para mejora pagos en otra moneda -->
             <div name="amount_div" position="after">
                 <field name="company_currency_id" invisible="1"/>
@@ -91,77 +89,40 @@
                     x <field name="exchange_rate"/> = <field name="amount_company_currency" attrs="{'readonly': [('state', '!=', 'draft')]}"/>
                 </div>
             </div>
-
-            <form position="attributes">
-                <attribute name="create">false</attribute>
-                <attribute name="edit">false</attribute>
-            </form>
             <form>
                 <field name="payment_group_company_id" invisible="1"/>
                 <!-- agregamos este campo para que ejecute el onchange y lo actualice al en la tree -->
                 <field name="signed_amount_company_currency" invisible="1"/>
                 <field name="signed_amount" invisible="1"/>
             </form>
-            <!-- ahora lo hicimos con el fix -->
-            <!-- <field name="journal_id" position="attributes">
-                <attribute name="domain">[('company_id', '=', payment_group_company_id)]</attribute>
-            </field> -->
-
-            <!-- <button name="post" position="attributes">
-                <attribute name="invisible">context.get('payment_group')</attribute>
-            </button> -->
             <button name="post" position="attributes">
-                <!-- idem cancel -->
-                <!-- <attribute name="invisible">1</attribute> -->
                 <attribute name="groups">base.group_no_one</attribute>
                 <attribute name="confirm">IMPORTANTE: La validación de la línea de pago se debe hacer desde el recibo. La validación manual de una línea de pago se usa solo para correcciones y usos avanzados. Seguro desea continuar?</attribute>
             </button>
-
             <button name="cancel" position="attributes">
-                <!-- al final lo hacemos visible para poder hacer ajustes sin cancelar todo el payment group, pero solo si no transfer, con tec group y un confirm -->
-                <!-- <attribute name="invisible">1</attribute> -->
                 <attribute name="groups">base.group_no_one</attribute>
                 <attribute name="confirm">IMPORTANTE: La validación de la línea de pago se debe hacer desde el recibo. La cancelación manual de una línea de pago se usa solo para correcciones y usos avanzados. Seguro desea continuar?</attribute>
             </button>
-
             <field name="payment_type" position="after">
                 <field name="payment_type_copy" string="Payment Type" widget="radio" attrs="{'readonly': [('state', '!=', 'draft')]}" groups="account_payment_group.group_choose_payment_type"/>
             </field>
-
             <field name="payment_type" position="attributes">
-                <!-- comes from payment_group and from context on transfers -->
                 <attribute name="invisible">1</attribute>
-                <!-- <attribute name="invisible">context.get('payment_group')</attribute> -->
             </field>
-
-            <field name="partner_type" position="attributes">
-                <!-- comes from payment_group and is not used on transfers -->
-                <attribute name="invisible">1</attribute>
-                <!-- <attribute name="invisible">context.get('payment_group')</attribute> -->
-            </field>
-            <field name="partner_id" position="attributes">
-                <!-- comes from payment_group and is not used on transfers -->
-                <attribute name="invisible">1</attribute>
-                <!-- <attribute name="invisible">context.get('payment_group')</attribute> -->
-            </field>
-
-            <!-- <field name="state" position="attributes">
-                <attribute name="invisible">context.get('payment_group')</attribute>
-            </field> -->
         </field>
     </record>
 
     <!-- disable create on paymen tree view -->
-    <record id="view_account_payment_tree" model="ir.ui.view">
-        <field name="name">account.payment.transfer.tree</field>
-        <field name="model">account.payment</field>
-        <field name="inherit_id" ref="account.view_account_payment_tree"/>
-        <field name="arch" type="xml">
-            <tree position="attributes">
-                <attribute name="create">false</attribute>
-            </tree>
-        </field>
-    </record>
+<!--    <record id="view_account_payment_tree" model="ir.ui.view">-->
+<!--        <field name="name">account.payment.transfer.tree</field>-->
+<!--        <field name="model">account.payment</field>-->
+<!--        <field name="inherit_id" ref="account.view_account_payment_tree"/>-->
+<!--        <field name="arch" type="xml">-->
+<!--            <tree position="attributes">-->
+<!--                <attribute name="create">false</attribute>-->
+<!--            </tree>-->
+<!--        </field>-->
+<!--    </record>-->
 
 <!-- Transfers views -->
 

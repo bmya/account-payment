@@ -66,6 +66,10 @@ class AccountPayment(models.Model):
         string='Company currency',
     )
 
+    @api.multi
+    def unlink(self):
+        super(AccountPayment, self).unlink()
+
     @api.depends(
         'amount', 'payment_type', 'partner_type', 'amount_company_currency')
     def _compute_signed_amount(self):

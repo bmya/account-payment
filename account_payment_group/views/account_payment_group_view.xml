@@ -154,7 +154,7 @@
                     </group>
                 </group>
                 <notebook>
-                    <page string="To Pay Lines" attrs="{'invisible': ['|', '|', ('pop_up', '=', True), ('payment_subtype', '!=', 'double_validation'), ('state', 'not in', ['draft', 'confirmed'])]}">
+                    <page string="To Pay Lines" >
                         <button name="add_all" string="Add All / Refresh" states="draft" type="object"/>
                         <button name="remove_all" string="Remove All" states="draft" type="object"/>
                         <button name="%(action_account_payment_group_invoice_wizard)d" string="+ Debit Note" states="draft" type="action"/>
