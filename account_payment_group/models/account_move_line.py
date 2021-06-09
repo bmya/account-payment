@@ -2,7 +2,7 @@
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl).
 
 from odoo import models, fields, api
-# from odoo.exceptions import UserError, ValidationError
+from odoo.exceptions import UserError
 
 
 class AccountMoveLine(models.Model):
@@ -179,10 +179,12 @@ class AccountMoveLine(models.Model):
     @api.multi
     def write(self, vals):
         for rec in self:
-            if rec.move_id.state != 'posted':
+            if rec._context.get('update_amount_parcial', False):
+                if 'amount_parcial' in vals:
+                    return super(AccountMoveLine, rec).write(vals)
+            else:
                 return super(AccountMoveLine, rec).write(vals)
-            elif 'amount_parcial' in vals:
-                return super(AccountMoveLine, rec).write(vals)
+
 
     @api.multi
     def remove_move_reconcile(self):

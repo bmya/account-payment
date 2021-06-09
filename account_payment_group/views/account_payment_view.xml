@@ -20,6 +20,7 @@
 
 <!-- change tree view of supplier action -->
 <record id="account.action_account_payments_payable" model="ir.actions.act_window">
+    <field name="name">Anticipos</field>
     <field name="view_id" ref="account.view_account_payment_tree"/>
 </record>
 
@@ -95,14 +96,18 @@
                 <field name="signed_amount_company_currency" invisible="1"/>
                 <field name="signed_amount" invisible="1"/>
             </form>
-            <button name="post" position="attributes">
-                <attribute name="groups">base.group_no_one</attribute>
-                <attribute name="confirm">IMPORTANTE: La validación de la línea de pago se debe hacer desde el recibo. La validación manual de una línea de pago se usa solo para correcciones y usos avanzados. Seguro desea continuar?</attribute>
-            </button>
-            <button name="cancel" position="attributes">
-                <attribute name="groups">base.group_no_one</attribute>
-                <attribute name="confirm">IMPORTANTE: La validación de la línea de pago se debe hacer desde el recibo. La cancelación manual de una línea de pago se usa solo para correcciones y usos avanzados. Seguro desea continuar?</attribute>
-            </button>
+                <button name="open_payment_matching_screen" position="attributes">
+                    <attribute name="attrs">{}</attribute>
+                    <attribute name="invisible">1</attribute>
+                </button>
+<!--            <button name="post" position="attributes">-->
+<!--                <attribute name="groups">base.group_no_one</attribute>-->
+<!--                <attribute name="confirm">IMPORTANTE: La validación de la línea de pago se debe hacer desde el recibo. La validación manual de una línea de pago se usa solo para correcciones y usos avanzados. Seguro desea continuar?</attribute>-->
+<!--            </button>-->
+<!--            <button name="cancel" position="attributes">-->
+<!--                <attribute name="groups">base.group_no_one</attribute>-->
+<!--                <attribute name="confirm">IMPORTANTE: La validación de la línea de pago se debe hacer desde el recibo. La cancelación manual de una línea de pago se usa solo para correcciones y usos avanzados. Seguro desea continuar?</attribute>-->
+<!--            </button>-->
             <field name="payment_type" position="after">
                 <field name="payment_type_copy" string="Payment Type" widget="radio" attrs="{'readonly': [('state', '!=', 'draft')]}" groups="account_payment_group.group_choose_payment_type"/>
             </field>

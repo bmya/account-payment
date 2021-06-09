@@ -687,7 +687,7 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:account_payment_group.view_account_payment_group_graph
 #: model_terms:ir.ui.view,arch_db:account_payment_group.view_account_payment_group_search
 msgid "Payments"
-msgstr "Pagos"
+msgstr "Anticipos"
 
 #. module: account_payment_group
 #: model_terms:ir.ui.view,arch_db:account_payment_group.view_account_payment_group_form

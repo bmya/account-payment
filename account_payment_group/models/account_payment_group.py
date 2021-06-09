@@ -487,10 +487,15 @@ class AccountPaymentGroup(models.Model):
             return
         for rec in self:
             rec.payment_ids = [(2, item.id, 0) for item in rec.payment_ids]
+            domain = [('partner_id', '=', rec.partner_id.id), ('state', '=', 'posted')]
             if rec.account_internal_type == 'payable':
-                rec.payment_ids = [(6, 0, self.env['account.payment'].search([('partner_id', '=', rec.partner_id.id), ('state', '=', 'posted'), ('partner_type', '=', 'supplier')]).ids)]
+                domain.append(('partner_type', '=', 'supplier'))
+                                                                                    # Este filtro se hace con la premisa de que el pago siempre se cancela completamente con una o varias facturas
+                rec.payment_ids = [(6, 0, self.env['account.payment'].search(domain).filtered(lambda pay: pay.has_invoices is False).ids)]
             if rec.account_internal_type == 'receivable':
-                rec.payment_ids = [(6, 0, self.env['account.payment'].search([('partner_id', '=', rec.partner_id.id), ('state', '=', 'posted'), ('partner_type', '=', 'customer')]).ids)]
+                domain.append(('partner_type', '=', 'customer'))
+                                                                                    # Este filtro se hace con la premisa de que el pago siempre se cancela completamente con una o varias facturas
+                rec.payment_ids = [(6, 0, self.env['account.payment'].search(domain).filtered(lambda pay: pay.has_invoices is False).ids)]
             rec.add_all()
 
     @api.multi
