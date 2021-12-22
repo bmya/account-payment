@@ -4,51 +4,51 @@
 
 <odoo>
 
-<!-- hide default payments menus -->
-<record id="account.menu_action_account_payments_receivable" model="ir.ui.menu">
-    <field eval="[(6, 0, [ref('account_see_payment_menu')])]" name="groups_id"/>
-</record>
+    <!-- hide default payments menus -->
+    <record id="account.menu_action_account_payments_receivable" model="ir.ui.menu">
+        <field eval="[(6, 0, [ref('account_see_payment_menu')])]" name="groups_id"/>
+    </record>
 
-<record id="account.menu_action_account_payments_payable" model="ir.ui.menu">
-    <field eval="[(6, 0, [ref('account_see_payment_menu')])]" name="groups_id"/>
-</record>
+    <record id="account.menu_action_account_payments_payable" model="ir.ui.menu">
+        <field eval="[(6, 0, [ref('account_see_payment_menu')])]" name="groups_id"/>
+    </record>
 
-<!-- we dont want to use supplier tree view because is the same as default tree view -->
-<record id="account.view_account_supplier_payment_tree" model="ir.ui.view">
-    <field name="priority">90</field>
-</record>
+    <!-- we dont want to use supplier tree view because is the same as default tree view -->
+    <record id="account.view_account_supplier_payment_tree" model="ir.ui.view">
+        <field name="priority">90</field>
+    </record>
 
-<!-- change tree view of supplier action -->
-<record id="account.action_account_payments_payable" model="ir.actions.act_window">
-    <field name="view_id" ref="account.view_account_payment_tree"/>
-</record>
+    <!-- change tree view of supplier action -->
+    <record id="account.action_account_payments_payable" model="ir.actions.act_window">
+        <field name="view_id" ref="account.view_account_payment_tree"/>
+    </record>
 
-<!--  -->
+    <!--  -->
 
-<!-- view for payments from payment group, we need edit = true and create = true, we also clean some fields, we could also make and inherited view -->
-<record id="view_account_payment_from_group_tree" model="ir.ui.view">
-    <field name="name">account.payment.tree</field>
-    <field name="model">account.payment</field>
-    <field name="arch" type="xml">
-        <tree>
-            <field name="name"/>
-            <field name="journal_id"/>
-            <field name="payment_method_description"/>
-            <!-- lo agregamos para que al usar guardar y nuevo se ejecute onchange en la form y previsualice bien importe en la tree -->
-            <field name="amount" invisible="1"/>
-            <!-- sum de este amount no tiene sentido por que puede ser distintas monedas -->
-            <field name="signed_amount"/>
-            <field name="signed_amount_company_currency" sum="Total"/>
-            <field name="state"/>
-            <field name="currency_id" invisible="1"/>
-            <field name="company_currency_id" invisible="1"/>
-            <field name="partner_type" invisible="1"/>
-            <button icon="fa-pencil" type="object" states="draft" name="show_details" string="Details"/>
-        </tree>
-    </field>
-</record>
+    <!-- view for payments from payment group, we need edit = true and create = true, we also clean some fields, we could also make and inherited view -->
+    <record id="view_account_payment_from_group_tree" model="ir.ui.view">
+        <field name="name">account.payment.tree</field>
+        <field name="model">account.payment</field>
+        <field name="arch" type="xml">
+            <tree>
+                <field name="name"/>
+                <field name="journal_id"/>
+                <field name="payment_method_description"/>
+                <!-- lo agregamos para que al usar guardar y nuevo se ejecute onchange en la form y previsualice bien importe en la tree -->
+                <field name="amount" invisible="1"/>
+                <!-- sum de este amount no tiene sentido por que puede ser distintas monedas -->
+                <field name="signed_amount"/>
+                <field name="signed_amount_company_currency" sum="Total"/>
+                <field name="state"/>
+                <field name="currency_id" invisible="1"/>
+                <field name="company_currency_id" invisible="1"/>
+                <field name="partner_type" invisible="1"/>
+                <button icon="fa-pencil" type="object" states="draft" name="show_details" string="Details"/>
+            </tree>
+        </field>
+    </record>
 
-<!-- default payment views (we disable creation and are not used for transfers) -->
+    <!-- default payment views (we disable creation and are not used for transfers) -->
     <record id="view_account_payment_form" model="ir.ui.view">
         <field name="name">account.payment.form</field>
         <field name="model">account.payment</field>
@@ -58,12 +58,16 @@
             <!-- we make title invisible and we add a new one -->
             <div class="oe_title" position="attributes">
                 <!-- <attribute name="invisible">1</attribute> -->
-                <attribute name="attrs">{'invisible': ['|', ('payment_type', '!=', 'transfer'), ('state', '=', 'draft')]}</attribute>
+                <attribute name="attrs">{'invisible': ['|', ('payment_type', '!=', 'transfer'), ('state', '=',
+                    'draft')]}
+                </attribute>
             </div>
             <div class="oe_title" position="after">
                 <!-- only show this field if we are not on a payment group -->
                 <div class="oe_title" name="payment_group_id" invisible="context.get('payment_group')">
-                    <h1><field name="payment_group_id"/></h1>
+                    <h1>
+                        <field name="payment_group_id"/>
+                    </h1>
                 </div>
             </div>
 
@@ -72,9 +76,14 @@
                 <field name="company_currency_id" invisible="1"/>
                 <field name="other_currency" invisible="1"/>
                 <field name="force_amount_company_currency" invisible="1"/>
-                <label for="amount_company_currency" string="(on company currency)" attrs="{'invisible': [('other_currency', '=', False)]}"/>
-                <div name="amount_company_currency" class="o_row" attrs="{'invisible': [('other_currency', '=', False)]}">
-                    x <field name="exchange_rate"/> = <field name="amount_company_currency" attrs="{'readonly': [('state', '!=', 'draft')]}"/>
+                <label for="amount_company_currency" string="(on company currency)"
+                       attrs="{'invisible': [('other_currency', '=', False)]}"/>
+                <div name="amount_company_currency" class="o_row"
+                     attrs="{'invisible': [('other_currency', '=', False)]}">
+                    x
+                    <field name="exchange_rate"/>
+                    =
+                    <field name="amount_company_currency" attrs="{'readonly': [('state', '!=', 'draft')]}"/>
                 </div>
             </div>
 
@@ -92,17 +101,25 @@
             <button name="action_post" position="attributes">
                 <!-- idem cancel -->
                 <attribute name="groups">base.group_no_one</attribute>
-                <attribute name="confirm">IMPORTANTE: La validación de la línea de pago se debe hacer desde el recibo. La validación manual de una línea de pago se usa solo para correcciones y usos avanzados. Seguro desea continuar?</attribute>
+                <attribute name="confirm">IMPORTANTE: La validación de la línea de pago se debe hacer desde el recibo.
+                    La validación manual de una línea de pago se usa solo para correcciones y usos avanzados. Seguro
+                    desea continuar?
+                </attribute>
             </button>
 
             <button name="action_cancel" position="attributes">
                 <!-- al final lo hacemos visible para poder hacer ajustes sin cancelar todo el payment group, pero solo si no transfer, con tec group y un confirm -->
                 <attribute name="groups">base.group_no_one</attribute>
-                <attribute name="confirm">IMPORTANTE: La validación de la línea de pago se debe hacer desde el recibo. La cancelación manual de una línea de pago se usa solo para correcciones y usos avanzados. Seguro desea continuar?</attribute>
+                <attribute name="confirm">IMPORTANTE: La validación de la línea de pago se debe hacer desde el recibo.
+                    La cancelación manual de una línea de pago se usa solo para correcciones y usos avanzados. Seguro
+                    desea continuar?
+                </attribute>
             </button>
 
             <field name="payment_type" position="after">
-                <field name="payment_type_copy" string="Payment Type" widget="radio" attrs="{'readonly': [('state', '!=', 'draft')]}" groups="account_payment_group.group_choose_payment_type"/>
+                <field name="payment_type_copy" string="Payment Type" widget="radio"
+                       attrs="{'readonly': [('state', '!=', 'draft')]}"
+                       groups="account_payment_group.group_choose_payment_type"/>
             </field>
 
             <field name="payment_type" position="attributes">
@@ -134,7 +151,7 @@
         </field>
     </record>
 
-<!-- Transfers views -->
+    <!-- Transfers views -->
 
     <record id="view_account_payment_transfer_form" model="ir.ui.view">
         <field name="name">account.payment.transfer.form</field>
@@ -185,10 +202,11 @@
         <field name="priority">90</field>
         <field name="arch" type="xml">
             <search string="Transfers">
-                <field name="name" filter_domain="['|', ('name','ilike',self), ('ref','ilike',self)]" string="Description"/>
+                <field name="name" filter_domain="['|', ('name','ilike',self), ('ref','ilike',self)]"
+                       string="Description"/>
                 <separator/>
-                <field name="journal_id" />
-                <field name="company_id" groups="base.group_multi_company" />
+                <field name="journal_id"/>
+                <field name="company_id" groups="base.group_multi_company"/>
                 <separator/>
                 <filter string="Draft" domain="[('state','=','draft')]" name='state_draft'/>
                 <filter string="Posted" domain="[('state','=','posted')]" name='state_posted'/>
@@ -196,10 +214,13 @@
                 <filter name="reconciled" string="Reconciled" domain="[('state','=','reconciled')]"/>
                 <separator/>
                 <filter name="journal_id" string="Journal" domain="[]" context="{'group_by': 'journal_id'}"/>
-                <filter name="payment_method_id" string="Payment Method" domain="[]" context="{'group_by': 'payment_method_id'}"/>
+                <filter name="payment_method_id" string="Payment Method" domain="[]"
+                        context="{'group_by': 'payment_method_id'}"/>
                 <filter name="state" string="State" domain="[]" context="{'group_by': 'state'}"/>
-                <filter name="currency_id" string="Currency" domain="[]" context="{'group_by': 'currency_id'}" groups="base.group_multi_currency"/>
-                <filter name="company_id" string="Company" domain="[]" context="{'group_by': 'company_id'}" groups="base.group_multi_company"/>
+                <filter name="currency_id" string="Currency" domain="[]" context="{'group_by': 'currency_id'}"
+                        groups="base.group_multi_currency"/>
+                <filter name="company_id" string="Company" domain="[]" context="{'group_by': 'company_id'}"
+                        groups="base.group_multi_company"/>
             </search>
         </field>
     </record>
@@ -213,7 +234,7 @@
             https://github.com/odoo/odoo/commit/6774f9cfe768e5cffce4cfd458910af450ef7616
             https://github.com/odoo/odoo/blob/13.0/addons/account/views/account_payment_view.xml#L40 -->
             <kanban class="o_kanban_mobile" position="attributes">
-                <attribute name="create" >1</attribute>
+                <attribute name="create">1</attribute>
             </kanban>
         </field>
     </record>
@@ -231,11 +252,13 @@
             (0, 0, {'view_mode': 'form', 'view_id': ref('view_account_payment_transfer_form')})]"/>
         <field name="help" type="html">
             <p class="oe_view_nocontent_create">
-              Click to register a transfer between liquidity journals
+                Click to register a transfer between liquidity journals
             </p>
         </field>
     </record>
 
-    <menuitem action="action_account_payments_transfer" id="menu_action_account_payments_transfer" parent="account_payment_fix.menu_finance_bank_and_cash" sequence="30" groups="account.group_account_user"/>
+    <menuitem action="action_account_payments_transfer" id="menu_action_account_payments_transfer"
+              parent="account_payment_fix.menu_finance_bank_and_cash" sequence="30"
+              groups="account.group_account_user"/>
 
 </odoo>

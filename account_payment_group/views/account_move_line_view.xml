@@ -56,18 +56,18 @@
             <field name="pay_now_journal_id" attrs="{'invisible': [('move_type', 'not in', ('out_invoice', 'out_refund'))]}" options="{'no_create': True}" domain="[('company_id', '=', company_id), ('type', 'in', ['bank', 'cash']), ('inbound_payment_method_ids.code', '=', 'manual')]" groups="account_payment_group.group_pay_now_customer_invoices"/>
         </group>
 
-<!--        <button id="account_invoice_payment_btn" position="attributes">-->
-<!--            <attribute name="name">action_account_invoice_payment_group</attribute>-->
-<!--        </button>-->
+        <button id="account_invoice_payment_btn" position="attributes">
+            <attribute name="name">action_account_invoice_payment_group</attribute>
+        </button>
 
-<!--        <field name="invoice_payments_widget" position="after">-->
-<!--            <field name="payment_group_ids" invisible="1"/>-->
-<!--            <button type="object"  name="action_view_payment_groups"-->
-<!--                    class="oe_link" string="View Payments"-->
-<!--                    colspan="2"-->
-<!--                    groups="account.group_account_invoice"-->
-<!--                    attrs="{'invisible':[('payment_group_ids','=',[])]}"/>-->
-<!--        </field>-->
+        <field name="invoice_payments_widget" position="after">
+            <field name="payment_group_ids" invisible="1"/>
+            <button type="object"  name="action_view_payment_groups"
+                    class="oe_link" string="View Payments"
+                    colspan="2"
+                    groups="account.group_account_invoice"
+                    attrs="{'invisible':[('payment_group_ids','=',[])]}"/>
+        </field>
     </field>
 </record>
 

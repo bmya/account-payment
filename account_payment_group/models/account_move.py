@@ -25,20 +25,21 @@ class AccountMove(models.Model):
         # 2. on duplicating an invoice it's safer also
         copy=False,
     )
-    # payment_group_ids = fields.Many2many(
-    #     'account.payment.group',
-    #     compute='_compute_payment_groups',
-    #     string='Payment Groups',
-    #     compute_sudo=True,
-    # )
-    #
-    # def _compute_payment_groups(self):
-    #     """
-    #     El campo en invoices "payment_id" no lo seteamos con los payment groups
-    #     Por eso tenemos que calcular este campo
-    #     """
-    #     for rec in self:
-    #         rec.payment_group_ids = rec._get_reconciled_payments().mapped('payment_group_id')
+
+    payment_group_ids = fields.Many2many(
+        'account.payment.group',
+        compute='_compute_payment_groups',
+        string='Payment Groups',
+        compute_sudo=True,
+    )
+
+    def _compute_payment_groups(self):
+        """
+        El campo en invoices "payment_id" no lo seteamos con los payment groups
+        Por eso tenemos que calcular este campo
+        """
+        for rec in self:
+            rec.payment_group_ids = rec._get_reconciled_payments().mapped('payment_group_id')
 
     def _get_tax_factor(self):
         self.ensure_one()
@@ -51,35 +52,35 @@ class AccountMove(models.Model):
             rec.open_move_line_ids = rec.line_ids.filtered(
                 lambda r: not r.reconciled and r.account_id.internal_type in (
                     'payable', 'receivable'))
-    #
-    # def action_account_invoice_payment_group(self):
-    #     self.ensure_one()
-    #     if self.state != 'posted' or self.invoice_payment_state != 'not_paid':
-    #         raise ValidationError(_('You can only register payment if invoice is posted and unpaid'))
-    #     return {
-    #         'name': _('Register Payment'),
-    #         'view_type': 'form',
-    #         'view_mode': 'form',
-    #         'res_model': 'account.payment.group',
-    #         'view_id': False,
-    #         'target': 'current',
-    #         'type': 'ir.actions.act_window',
-    #         'context': {
-    #             # si bien el partner se puede adivinar desde los apuntes
-    #             # con el default de payment group, preferimos mandar por aca
-    #             # ya que puede ser un contacto y no el commercial partner (y
-    #             # en los apuntes solo hay commercial partner)
-    #             'default_partner_id': self.partner_id.id,
-    #             'to_pay_move_line_ids': self.open_move_line_ids.ids,
-    #             'pop_up': True,
-    #             # We set this because if became from other view and in the
-    #             # context has 'create=False' you can't crate payment lines
-    #             #  (for ej: subscription)
-    #             'create': True,
-    #             'default_company_id': self.company_id.id,
-    #         },
-    #     }
-    #
+
+    def action_account_invoice_payment_group(self):
+        self.ensure_one()
+        if self.state != 'posted' or self.invoice_payment_state != 'not_paid':
+            raise ValidationError(_('You can only register payment if invoice is posted and unpaid'))
+        return {
+            'name': _('Register Payment'),
+            'view_type': 'form',
+            'view_mode': 'form',
+            'res_model': 'account.payment.group',
+            'view_id': False,
+            'target': 'current',
+            'type': 'ir.actions.act_window',
+            'context': {
+                # si bien el partner se puede adivinar desde los apuntes
+                # con el default de payment group, preferimos mandar por aca
+                # ya que puede ser un contacto y no el commercial partner (y
+                # en los apuntes solo hay commercial partner)
+                'default_partner_id': self.partner_id.id,
+                'to_pay_move_line_ids': self.open_move_line_ids.ids,
+                'pop_up': True,
+                # We set this because if became from other view and in the
+                # context has 'create=False' you can't crate payment lines
+                #  (for ej: subscription)
+                'create': True,
+                'default_company_id': self.company_id.id,
+            },
+        }
+
     def action_post(self):
         res = super(AccountMove, self).action_post()
         self.pay_now()
@@ -143,26 +144,26 @@ class AccountMove(models.Model):
                 })
                 # if validate_payment:
                 payment_group.action_post()
-    #
-    # def action_view_payment_groups(self):
-    #     if self.type in ('in_invoice', 'in_refund'):
-    #         action = self.env.ref(
-    #             'account_payment_group.action_account_payments_group_payable')
-    #     else:
-    #         action = self.env.ref(
-    #             'account_payment_group.action_account_payments_group')
-    #
-    #     result = action.read()[0]
-    #
-    #     if len(self.payment_group_ids) != 1:
-    #         result['domain'] = [('id', 'in', self.payment_group_ids.ids)]
-    #     elif len(self.payment_group_ids) == 1:
-    #         res = self.env.ref(
-    #             'account_payment_group.view_account_payment_group_form', False)
-    #         result['views'] = [(res and res.id or False, 'form')]
-    #         result['res_id'] = self.payment_group_ids.id
-    #     return result
-    #
+
+    def action_view_payment_groups(self):
+        if self.type in ('in_invoice', 'in_refund'):
+            action = self.env.ref(
+                'account_payment_group.action_account_payments_group_payable')
+        else:
+            action = self.env.ref(
+                'account_payment_group.action_account_payments_group')
+
+        result = action.read()[0]
+
+        if len(self.payment_group_ids) != 1:
+            result['domain'] = [('id', 'in', self.payment_group_ids.ids)]
+        elif len(self.payment_group_ids) == 1:
+            res = self.env.ref(
+                'account_payment_group.view_account_payment_group_form', False)
+            result['views'] = [(res and res.id or False, 'form')]
+            result['res_id'] = self.payment_group_ids.id
+        return result
+
     @api.onchange('journal_id')
     def _onchange_journal_reset_pay_now(self):
         # while not always it should be reseted (only if changing company) it's not so usual to set pay now first

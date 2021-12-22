@@ -13,5 +13,4 @@
     ],
     'installable': True,
     'name': 'Account Payment Fix',
-    'test': [],
 }

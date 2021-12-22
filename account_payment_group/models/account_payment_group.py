@@ -38,7 +38,7 @@ class AccountPaymentGroup(models.Model):
     )
     partner_type = fields.Selection(
         [('customer', 'Customer'), ('supplier', 'Vendor')],
-        track_visibility='always',
+        tracking=True,
         change_default=True,
     )
     partner_id = fields.Many2one(
@@ -47,7 +47,7 @@ class AccountPaymentGroup(models.Model):
         required=True,
         readonly=True,
         states={'draft': [('readonly', False)]},
-        track_visibility='always',
+        tracking=True,
         change_default=True,
         index=True,
     )
@@ -61,7 +61,7 @@ class AccountPaymentGroup(models.Model):
         default=lambda self: self.env.company.currency_id,
         readonly=True,
         states={'draft': [('readonly', False)]},
-        track_visibility='always',
+        tracking=True,
     )
     payment_date = fields.Date(
         string='Payment Date',
@@ -119,12 +119,12 @@ class AccountPaymentGroup(models.Model):
         # string='Total To Pay Amount',
         readonly=True,
         states={'draft': [('readonly', False)]},
-        track_visibility='always',
+        tracking=True,
     )
     payments_amount = fields.Monetary(
         compute='_compute_payments_amount',
         string='Amount',
-        track_visibility='always',
+        tracking=True,
     )
     state = fields.Selection([
         ('draft', 'Draft'),
@@ -138,7 +138,7 @@ class AccountPaymentGroup(models.Model):
         default='draft',
         copy=False,
         string="Status",
-        track_visibility='onchange',
+        tracking=True,
         index=True,
     )
     has_outstanding = fields.Boolean(
@@ -195,7 +195,6 @@ class AccountPaymentGroup(models.Model):
         'account.payment',
         'payment_group_id',
         string='Payment Lines',
-        ondelete='cascade',
         copy=False,
         readonly=True,
         states={
@@ -294,47 +293,47 @@ class AccountPaymentGroup(models.Model):
             rec.payment_methods = ", ".join(rec.payment_ids.sudo().mapped(
                 'journal_id.name'))
 
-    # def action_payment_sent(self):
-    #     """ Open a window to compose an email, with the edi payment template
-    #         message loaded by default
-    #     """
-    #     self.ensure_one()
-    #     template = self.env.ref(
-    #         'account_payment_group.email_template_edi_payment_group',
-    #         False)
-    #     compose_form = self.env.ref(
-    #         'mail.email_compose_message_wizard_form', False)
-    #     ctx = dict(
-    #         default_model='account.payment.group',
-    #         default_res_id=self.id,
-    #         default_use_template=bool(template),
-    #         default_template_id=template and template.id or False,
-    #         default_composition_mode='comment',
-    #         mark_payment_as_sent=True,
-    #     )
-    #     return {
-    #         'name': _('Compose Email'),
-    #         'type': 'ir.actions.act_window',
-    #         'view_type': 'form',
-    #         'view_mode': 'form',
-    #         'res_model': 'mail.compose.message',
-    #         'views': [(compose_form.id, 'form')],
-    #         'view_id': compose_form.id,
-    #         'target': 'new',
-    #         'context': ctx,
-    #     }
-    #
-    # def payment_print(self):
-    #     self.ensure_one()
-    #     self.sent = True
-    #
-    #     # if we print caming from other model then active id and active model
-    #     # is wrong and it raise an error with custom filename
-    #     self = self.with_context(
-    #         active_model=self._name, active_id=self.id, active_ids=self.ids)
-    #
-    #     return self.env.ref('account_payment_group.action_report_payment_group').report_action(self)
-    #
+    def action_payment_sent(self):
+        """ Open a window to compose an email, with the edi payment template
+            message loaded by default
+        """
+        self.ensure_one()
+        template = self.env.ref(
+            'account_payment_group.email_template_edi_payment_group',
+            False)
+        compose_form = self.env.ref(
+            'mail.email_compose_message_wizard_form', False)
+        ctx = dict(
+            default_model='account.payment.group',
+            default_res_id=self.id,
+            default_use_template=bool(template),
+            default_template_id=template and template.id or False,
+            default_composition_mode='comment',
+            mark_payment_as_sent=True,
+        )
+        return {
+            'name': _('Compose Email'),
+            'type': 'ir.actions.act_window',
+            'view_type': 'form',
+            'view_mode': 'form',
+            'res_model': 'mail.compose.message',
+            'views': [(compose_form.id, 'form')],
+            'view_id': compose_form.id,
+            'target': 'new',
+            'context': ctx,
+        }
+
+    def payment_print(self):
+        self.ensure_one()
+        self.sent = True
+
+        # if we print caming from other model then active id and active model
+        # is wrong and it raise an error with custom filename
+        self = self.with_context(
+            active_model=self._name, active_id=self.id, active_ids=self.ids)
+
+        return self.env.ref('account_payment_group.action_report_payment_group').report_action(self)
+
     def _compute_payment_pop_up(self):
         pop_up = self._context.get('pop_up', False)
         for rec in self:
@@ -481,13 +480,13 @@ class AccountPaymentGroup(models.Model):
     #         # ('amount_residual_currency', '!=', False),
     #     ]
     #
-    # def add_all(self):
-    #     for rec in self:
-    #         rec.to_pay_move_line_ids = rec.env['account.move.line'].search(
-    #             rec._get_to_pay_move_lines_domain())
-    #
-    # def remove_all(self):
-    #     self.to_pay_move_line_ids = False
+    def add_all(self):
+        for rec in self:
+            rec.to_pay_move_line_ids = rec.env['account.move.line'].search(
+                rec._get_to_pay_move_lines_domain())
+
+    def remove_all(self):
+        self.to_pay_move_line_ids = False
 
     @api.model
     def default_get(self, defaul_fields):
@@ -515,43 +514,43 @@ class AccountPaymentGroup(models.Model):
             rec['to_pay_move_line_ids'] = [(6, False, to_pay_move_line_ids)]
         return rec
 
-    # def button_journal_entries(self):
-    #     return {
-    #         'name': _('Journal Items'),
-    #         'view_type': 'form',
-    #         'view_mode': 'tree,form',
-    #         'res_model': 'account.move.line',
-    #         'view_id': False,
-    #         'type': 'ir.actions.act_window',
-    #         'domain': [('payment_id', 'in', self.payment_ids.ids)],
-    #     }
+    def button_journal_entries(self):
+        return {
+            'name': _('Journal Items'),
+            'view_type': 'form',
+            'view_mode': 'tree,form',
+            'res_model': 'account.move.line',
+            'view_id': False,
+            'type': 'ir.actions.act_window',
+            'domain': [('payment_id', 'in', self.payment_ids.ids)],
+        }
     #
     # def unreconcile(self):
     #     self.mapped('payment_ids').unreconcile()
     #     # TODO en alguos casos setear sent como en payment?
     #     self.write({'state': 'posted'})
     #
-    # def cancel(self):
-    #     self.mapped('payment_ids').action_cancel()
-    #     self.write({'state': 'cancel'})
-    #     return True
-    #
-    # def action_draft(self):
-    #     self.mapped('payment_ids').action_draft()
-    #     # rec.payment_ids.write({'invoice_ids': [(5, 0, 0)]})
-    #     return self.write({'state': 'draft'})
+    def cancel(self):
+        self.mapped('payment_ids').action_cancel()
+        self.write({'state': 'cancel'})
+        return True
+
+    def action_draft(self):
+        self.mapped('payment_ids').action_draft()
+        # rec.payment_ids.write({'invoice_ids': [(5, 0, 0)]})
+        return self.write({'state': 'draft'})
     #
     # def unlink(self):
     #     if any(bool(rec.line_ids) for rec in self):
     #         raise ValidationError(_("You can not delete a payment that is already posted"))
     #     return super().unlink()
     #
-    # def confirm(self):
-    #     for rec in self:
-    #         accounts = rec.to_pay_move_line_ids.mapped('account_id')
-    #         if len(accounts) > 1:
-    #             raise ValidationError(_('To Pay Lines must be of the same account!'))
-    #     self.write({'state': 'confirmed'})
+    def confirm(self):
+        for rec in self:
+            accounts = rec.to_pay_move_line_ids.mapped('account_id')
+            if len(accounts) > 1:
+                raise ValidationError(_('To Pay Lines must be of the same account!'))
+        self.write({'state': 'confirmed'})
 
     def action_post(self):
         create_from_website = self._context.get('create_from_website', False)
@@ -599,34 +598,34 @@ class AccountPaymentGroup(models.Model):
     #         self.filtered(lambda rec: not rec.sent).write({'sent': True})
     #     return super(AccountPaymentGroup, self.with_context(
     #         mail_post_autofollow=True)).message_post(**kwargs)
-    #
-    # def action_account_invoice_payment_group(self):
-    #     active_ids = self.env.context.get('active_ids')
-    #     if not active_ids:
-    #         return ''
-    #     move_ids = self.env['account.move'].browse(active_ids)
-    #     if move_ids.filtered(lambda x: x.state != 'posted') or \
-    #             move_ids.filtered(lambda x: x.invoice_payment_state != 'not_paid'):
-    #         raise ValidationError(_('You can only register payment if invoice is posted and unpaid'))
-    #     return {
-    #         'name': _('Register Payment'),
-    #         'view_type': 'form',
-    #         'view_mode': 'form',
-    #         'res_model': 'account.payment.group',
-    #         'view_id': False,
-    #         'target': 'current',
-    #         'type': 'ir.actions.act_window',
-    #         'context': {
-    #             # si bien el partner se puede adivinar desde los apuntes
-    #             # con el default de payment group, preferimos mandar por aca
-    #             # ya que puede ser un contacto y no el commercial partner (y
-    #             # en los apuntes solo hay commercial partner)
-    #             'to_pay_move_line_ids': move_ids.mapped('open_move_line_ids').ids,
-    #             'pop_up': True,
-    #             # We set this because if became from other view and in the
-    #             # context has 'create=False' you can't crate payment lines
-    #             #  (for ej: subscription)
-    #             'create': True,
-    #             'default_company_id': move_ids[0].company_id.id,
-    #         },
-    #     }
+
+    def action_account_invoice_payment_group(self):
+        active_ids = self.env.context.get('active_ids')
+        if not active_ids:
+            return ''
+        move_ids = self.env['account.move'].browse(active_ids)
+        if move_ids.filtered(lambda x: x.state != 'posted') or \
+                move_ids.filtered(lambda x: x.invoice_payment_state != 'not_paid'):
+            raise ValidationError(_('You can only register payment if invoice is posted and unpaid'))
+        return {
+            'name': _('Register Payment'),
+            'view_type': 'form',
+            'view_mode': 'form',
+            'res_model': 'account.payment.group',
+            'view_id': False,
+            'target': 'current',
+            'type': 'ir.actions.act_window',
+            'context': {
+                # si bien el partner se puede adivinar desde los apuntes
+                # con el default de payment group, preferimos mandar por aca
+                # ya que puede ser un contacto y no el commercial partner (y
+                # en los apuntes solo hay commercial partner)
+                'to_pay_move_line_ids': move_ids.mapped('open_move_line_ids').ids,
+                'pop_up': True,
+                # We set this because if became from other view and in the
+                # context has 'create=False' you can't crate payment lines
+                #  (for ej: subscription)
+                'create': True,
+                'default_company_id': move_ids[0].company_id.id,
+            },
+        }
