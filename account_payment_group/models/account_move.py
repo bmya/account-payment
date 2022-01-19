@@ -121,10 +121,10 @@ class AccountMove(models.Model):
                         partner_type == 'customer' and
                         payment_group.payment_difference < 0.0):
                     payment_type = 'outbound'
-                    payment_methods = pay_journal.outbound_payment_method_line_ids.payment_method_id
+                    payment_methods = pay_journal.outbound_payment_method_ids.payment_method_id
                 else:
                     payment_type = 'inbound'
-                    payment_methods = pay_journal.inbound_payment_method_line_ids.payment_method_id
+                    payment_methods = pay_journal.inbound_payment_method_ids.payment_method_id
 
                 payment_method = payment_methods.filtered(
                     lambda x: x.code == 'manual')

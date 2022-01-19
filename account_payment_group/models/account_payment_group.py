@@ -404,11 +404,12 @@ class AccountPaymentGroup(models.Model):
         self.mapped('payment_ids').action_draft()
         return self.write({'state': 'draft'})
 
-    @api.ondelete(at_uninstall=False)
-    def _unlink_if_not_posted(self):
+    def unlink(self):
         recs = self.filtered(lambda x: x.state == 'posted')
         if recs:
             raise ValidationError(_('You can not delete posted payment groups. Payment group ids: %s') % recs.ids)
+        res = super().unlink()
+        return res
 
     def confirm(self):
         for rec in self:

@@ -271,7 +271,7 @@ class AccountPayment(models.Model):
         """
         for rec in self.filtered(lambda x: x.payment_method_line_id.code in ['in_third_checks', 'out_third_checks']):
             dest_payment_method_code = 'in_third_checks' if rec.payment_type == 'outbound' else 'out_third_checks'
-            dest_payment_method = rec.destination_journal_id.inbound_payment_method_line_ids.filtered(
+            dest_payment_method = rec.destination_journal_id.inbound_payment_method_ids.filtered(
                 lambda x: x.code == dest_payment_method_code)
             if dest_payment_method:
                 super(AccountPayment, rec.with_context(
