@@ -23,7 +23,7 @@ class AccountPaymentMassTransfer(models.TransientModel):
         if self._context.get('active_model') != 'account.payment':
             raise UserError(_("The register payment wizard should only be called on account.payment records."))
         payments = self.env['account.payment'].browse(self._context.get('active_ids', []))
-        checks = payments.filtered(lambda x: x.payment_method_line_id.code == 'new_third_checks')
+        checks = payments.filtered(lambda x: x.payment_method_id.code == 'new_third_checks')
         if not all(check.state == 'posted' for check in checks):
             raise UserError(_("All the selected checks must be posted"))
         if len(checks.mapped('journal_id')) != 1:
@@ -34,10 +34,10 @@ class AccountPaymentMassTransfer(models.TransientModel):
     def _create_payments(self):
         self.ensure_one()
         payments = self.env['account.payment'].browse(self._context.get('active_ids', []))
-        checks = payments.filtered(lambda x: x.payment_method_line_id.code == 'new_third_checks')
+        checks = payments.filtered(lambda x: x.payment_method_id.code == 'new_third_checks')
         payment_vals_list = []
 
-        pay_method_line = checks[0].journal_id._get_available_payment_method_lines('outbound').filtered(
+        pay_method_line = checks[0].journal_id.outbound_payment_method_ids.filtered(
             lambda x: x.code == 'out_third_checks')
         if not pay_method_line:
             raise UserError(_("There is no 'out_third_checks' payment method configured on journal %s") % (
@@ -53,7 +53,7 @@ class AccountPaymentMassTransfer(models.TransientModel):
                 'journal_id': self.journal_id.id,
                 'currency_id': check.currency_id.id,
                 'is_internal_transfer': True,
-                'payment_method_line_id': pay_method_line.id,
+                'payment_method_id': pay_method_line.id,
                 'destination_journal_id': self.destination_journal_id.id,
             })
         payments = self.env['account.payment'].create(payment_vals_list)

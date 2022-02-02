@@ -195,7 +195,7 @@ result = withholdable_base_amount * 0.10
                     lambda x: x.code == 'withholding')
 
                 vals['journal_id'] = journal.id
-                vals['payment_method_line_id'] = method.id
+                vals['payment_method_id'] = method.id
                 vals['payment_type'] = 'outbound'
                 vals['partner_type'] = payment_group.partner_type
                 vals['partner_id'] = payment_group.partner_id.id

@@ -36,7 +36,8 @@ Also implement third checks management
     'images': [
     ],
     'depends': [
-        'account_check_printing',
+        'base',
+        'account_check_printing'
     ],
     'data': [
         'data/account_payment_method_data.xml',
@@ -47,10 +48,7 @@ Also implement third checks management
         'wizards/account_payment_register_views.xml',
         'wizards/account_payment_mass_transfer_views.xml',
     ],
-    'demo': [
-    ],
-    'test': [
-    ],
+
     'installable': True,
     'auto_install': False,
     'application': True,

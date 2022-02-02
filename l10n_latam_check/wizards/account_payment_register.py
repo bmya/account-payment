@@ -7,10 +7,8 @@ class AccountPaymentRegister(models.TransientModel):
     _inherit = 'account.payment.register'
 
     l10n_latam_check_id = fields.Many2one('account.payment', string='Check')
-    l10n_latam_check_bank_id = fields.Many2one(
-        'res.bank', compute='_compute_l10n_latam_check_data', store=True, readonly=False, string='Check Bank')
-    l10n_latam_check_issuer_vat = fields.Char(
-        store=True, compute='_compute_l10n_latam_check_data', readonly=False, string='Check Issuer VAT')
+    l10n_latam_check_bank_id = fields.Many2one('res.bank', compute='_compute_l10n_latam_check_data', store=True, readonly=False, string='Check Bank')
+    l10n_latam_check_issuer_vat = fields.Char(store=True, compute='_compute_l10n_latam_check_data', readonly=False, string='Check Issuer VAT')
     l10n_latam_check_number = fields.Char(
         string="Check Number", store=True, readonly=False, copy=False,
         compute='_compute_l10n_latam_check_number', inverse='_inverse_l10n_latam_check_number',
@@ -20,11 +18,12 @@ class AccountPaymentRegister(models.TransientModel):
     l10n_latam_checkbook_id = fields.Many2one(
         'l10n_latam.checkbook', 'Checkbook', store=True, compute='_compute_l10n_latam_checkbook', readonly=False)
     l10n_latam_check_payment_date = fields.Date(string='Check Payment Date')
+    payment_method_code = fields.Char(related='payment_method_id.code')
 
-    @api.depends('payment_method_line_id.code', 'journal_id.l10n_latam_use_checkbooks')
+    @api.depends('payment_method_id.code', 'journal_id.l10n_latam_use_checkbooks')
     def _compute_l10n_latam_checkbook(self):
         with_checkbooks = self.filtered(
-            lambda x: x.payment_method_line_id.code == 'check_printing' and x.journal_id.l10n_latam_use_checkbooks)
+            lambda x: x.payment_method_id.code == 'check_printing' and x.journal_id.l10n_latam_use_checkbooks)
         (self - with_checkbooks).l10n_latam_checkbook_id = False
         for rec in with_checkbooks:
             checkbook = rec.journal_id.with_context(active_test=True).l10n_latam_checkbook_ids
@@ -42,9 +41,9 @@ class AccountPaymentRegister(models.TransientModel):
                 sequence = rec.journal_id.check_sequence_id.sudo()
                 sequence.padding = len(rec.l10n_latam_check_number)
 
-    @api.depends('payment_method_line_id.code', 'partner_id')
+    @api.depends('payment_method_id.code', 'partner_id')
     def _compute_l10n_latam_check_data(self):
-        new_third_checks = self.filtered(lambda x: x.payment_method_line_id.code == 'new_third_checks')
+        new_third_checks = self.filtered(lambda x: x.payment_method_id.code == 'new_third_checks')
         (self - new_third_checks).update({'l10n_latam_check_bank_id': False, 'l10n_latam_check_issuer_vat': False})
         for rec in new_third_checks:
             rec.update({

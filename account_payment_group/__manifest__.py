@@ -9,10 +9,6 @@
     "license": "AGPL-3",
     "application": False,
     'installable': True,
-    "external_dependencies": {
-        "python": [],
-        "bin": [],
-    },
     "depends": [
         "account_ux",
         "l10n_latam_invoice_document",
