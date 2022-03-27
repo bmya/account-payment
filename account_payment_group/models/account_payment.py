@@ -132,7 +132,13 @@ class AccountPayment(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         """ If a payment is created from anywhere else we create the payment group in top """
-        recs = super().create(vals_list)
+        new_vals_list = []
+        for vals in vals_list:
+            if vals.get('payment_date', False):
+                vals['date'] = vals['payment_date']
+                vals.pop('payment_date')
+            new_vals_list.append(vals)
+        recs = super().create(new_vals_list)
         for rec in recs.filtered(lambda x: not x.payment_group_id and not x.is_internal_transfer).with_context(
                 created_automatically=True):
             if not rec.partner_id:
