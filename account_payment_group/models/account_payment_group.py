@@ -344,10 +344,9 @@ class AccountPaymentGroup(models.Model):
     @api.depends('to_pay_move_line_ids.amount_residual')
     def _compute_selected_debt(self):
         for rec in self:
-            rec.selected_debt = sum(rec.to_pay_move_line_ids._origin.mapped('amount_residual')) * (-1.0 if rec.partner_type == 'supplier' else 1.0)
+            rec.selected_debt = sum(rec.to_pay_move_line_ids.mapped('amount_residual')) * (-1.0 if rec.partner_type == 'supplier' else 1.0)
 
-    @api.depends(
-        'selected_debt', 'unreconciled_amount')
+    @api.depends('selected_debt', 'unreconciled_amount')
     def _compute_to_pay_amount(self):
         for rec in self:
             rec.to_pay_amount = rec.selected_debt + rec.unreconciled_amount
