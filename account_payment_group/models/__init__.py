@@ -10,3 +10,4 @@ from . import account_journal_dashboard
 from . import account_payment_receiptbook
 from . import account_chart_template
 from . import l10n_latam_document_type
+from .  import account_payment_register
