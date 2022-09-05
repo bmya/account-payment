@@ -64,8 +64,20 @@ class AccountMove(models.Model):
             raise UserError(_('Nothing to be paid on selected entries'))
         to_pay_partners = self.mapped('commercial_partner_id')
         if len(to_pay_partners) > 1:
-            raise UserError(_('Selected records must be of the same partner'))
-
+            context = self._context.copy()
+            context.update({
+                'default_to_pay_move_line_ids': to_pay_move_lines.ids,
+                'create_single_payments': True,
+                'default_company_id': self.company_id.id,
+            })
+            return {
+                'name': _('Register Payment'),
+                'view_mode': 'form',
+                'res_model': 'account.payment.register',
+                'target': 'new',
+                'type': 'ir.actions.act_window',
+                'context': context,
+            }
         return {
             'name': _('Register Payment'),
             'view_mode': 'form',

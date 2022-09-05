@@ -352,8 +352,7 @@ class AccountPaymentGroup(models.Model):
         for rec in self:
             rec.selected_debt = sum(rec.to_pay_move_line_ids._origin.mapped('amount_residual')) * (-1.0 if rec.partner_type == 'supplier' else 1.0)
 
-    @api.depends(
-        'selected_debt', 'unreconciled_amount')
+    @api.depends('selected_debt', 'unreconciled_amount')
     def _compute_to_pay_amount(self):
         for rec in self:
             rec.to_pay_amount = rec.selected_debt + rec.unreconciled_amount
@@ -509,11 +508,11 @@ class AccountPaymentGroup(models.Model):
     def check_to_pay_lines(self):
         for rec in self:
             to_pay_partners = rec.to_pay_move_line_ids.mapped('partner_id')
-            if len(to_pay_partners) > 1:
-                raise ValidationError(_('All to pay lines must be of the same partner'))
+            # if len(to_pay_partners) > 1:
+            #     raise ValidationError(_('All to pay lines must be of the same partner'))
             if len(rec.to_pay_move_line_ids.mapped('company_id')) > 1:
                 raise ValidationError(_("You can't create payments for entries belonging to different companies."))
-            if to_pay_partners and to_pay_partners != rec.partner_id.commercial_partner_id:
+            if to_pay_partners and not rec.partner_id.id in to_pay_partners.ids:
                 raise ValidationError(_('Payment group for partner %s but payment lines are of partner %s') % (
                     rec.partner_id.name, to_pay_partners.name))
 

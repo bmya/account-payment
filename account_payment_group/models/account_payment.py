@@ -170,13 +170,20 @@ class AccountPayment(models.Model):
             if not rec.partner_id:
                 raise ValidationError(_(
                     'Manual payments should not be created manually but created from Customer Receipts / Supplier Payments menus'))
-            rec.payment_group_id = self.env['account.payment.group'].create({
+            values = {
                 'company_id': rec.company_id.id,
                 'partner_type': rec.partner_type,
                 'partner_id': rec.partner_id.id,
                 'payment_date': rec.date,
                 'communication': rec.ref,
-            })
+            }
+            if rec.env.context.get('default_to_pay_move_line_ids'):
+                pay_move_line_ids = rec.env.context.get('default_to_pay_move_line_ids')
+                amount = rec.amount if rec.partner_type == 'customer' else -rec.amount
+                to_pay_move_line_ids = rec.env['account.move.line'].search([('id', 'in', pay_move_line_ids), ('partner_id', '=', rec.partner_id.id), ('amount_residual', '=', amount)])
+                if to_pay_move_line_ids:
+                    values['to_pay_move_line_ids'] = [(6, 0, to_pay_move_line_ids[0].ids)]
+            rec.payment_group_id = self.env['account.payment.group'].create(values).id
             rec.payment_group_id.post()
         return recs
 
