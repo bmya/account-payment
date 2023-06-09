@@ -31,7 +31,6 @@ class AccountPayment(models.Model):
         res = super()._get_valid_liquidity_accounts()
         if self.tax_withholding_id:
             res += (self._get_withholding_repartition_line().account_id,)
-
         return res
 
     def action_post(self):
