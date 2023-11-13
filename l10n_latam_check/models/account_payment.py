@@ -27,7 +27,7 @@ class AccountPayment(models.Model):
 
     # New third party check info
     l10n_latam_check_bank_id = fields.Many2one(
-        'res.bank', readonly=True, states={'draft': [('readonly', False)]},
+        'res.bank', readonly=False,
         compute='_compute_l10n_latam_check_data', store=True, string='Check Bank')
     l10n_latam_check_issuer_vat = fields.Char(
         readonly=True, states={'draft': [('readonly', False)]},
