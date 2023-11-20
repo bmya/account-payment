@@ -41,6 +41,24 @@ class AccountPayment(models.Model):
     l10n_latam_checkbook_id = fields.Many2one(
         'l10n_latam.checkbook', 'Checkbook', store=True,
         compute='_compute_l10n_latam_checkbook', readonly=True, states={'draft': [('readonly', False)]})
+    check_state = fields.Selection([
+        ('draft', 'Draft'),
+        ('holding', 'A mano'),
+        ('deposited', 'Depositado'),
+        ('selled', 'Vendido'),
+        ('delivered', 'Endosado'),
+        ('transfered', 'Transfered'),
+        ('reclaimed', 'Reclamado'),
+        ('withdrawed', 'Retirado'),
+        ('handed', 'Handed'),
+        ('rejected', 'Rechazado'),
+        ('debited', 'Debited'),
+        ('returned', 'Devuelto'),
+        ('changed', 'Cambiado'),
+        ('cancel', 'Cancelar'),
+        ('old', 'Deprecated / Old version')
+    ], 'Estado cheque ( V11 )', default='old', help='Old check state of module 11')
+
 
     @api.depends('payment_method_line_id.code', 'journal_id.l10n_latam_use_checkbooks')
     def _compute_l10n_latam_checkbook(self):
