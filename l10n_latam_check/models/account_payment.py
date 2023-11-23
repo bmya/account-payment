@@ -24,6 +24,7 @@ class AccountPayment(models.Model):
 
     # Check number override as we want to set it manually
     check_number = fields.Char(readonly=False)
+    check_number_11 = fields.Char(string='Numero de cheque V11')
 
     # New third party check info
     l10n_latam_check_bank_id = fields.Many2one(
