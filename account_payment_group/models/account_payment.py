@@ -197,8 +197,9 @@ class AccountPayment(models.Model):
             to_pay_account = rec.payment_group_id.to_pay_move_line_ids.mapped(
                 'account_id')
             if len(to_pay_account) > 1:
-                raise ValidationError(_(
-                    'To Pay Lines must be of the same account!'))
+                pass
+                # raise ValidationError(_(
+                #     'To Pay Lines must be of the same account!'))
             elif len(to_pay_account) == 1:
                 rec.destination_account_id = to_pay_account[0]
             else:
